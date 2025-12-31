@@ -400,14 +400,14 @@
                             <option value="">كل المراحل</option>
                             ${[...new Set(state.schools.filter(s => s.type !== 'admin').map(s => s.stage))].map(stage => {
                 const stageName = state.schools.find(s => s.stage === stage)?.stageName || stage;
-                return `<option value="${stage}" ${state.loginForm.stage === stage ? 'selected' : ''}>${stageName}</option>`;
+                return `<option value="${stage}" ${state.loginForm.stage == stage ? 'selected' : ''}>${stageName}</option>`;
             }).join('')}
                         </select>
                         <select onchange="setState('loginForm', {...state.loginForm, type: this.value, school: ''})" class="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs font-bold outline-none">
                             <option value="">كل الأنواع</option>
                             ${[...new Set(state.schools.filter(s => s.type !== 'admin' && (!state.loginForm.stage || s.stage === state.loginForm.stage)).map(s => s.type))].map(type => {
                 const typeName = state.schools.find(s => s.type === type)?.typeName || type;
-                return `<option value="${type}" ${state.loginForm.type === type ? 'selected' : ''}>${typeName}</option>`;
+                return `<option value="${type}" ${state.loginForm.type == type ? 'selected' : ''}>${typeName}</option>`;
             }).join('')}
                         </select>
                     </div>
@@ -416,7 +416,7 @@
                         <label class="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">اختر المدرسة</label>
                         <select id="schoolSelect" onchange="setState('loginForm', {...state.loginForm, school: this.value})" class="w-full p-3.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none font-bold text-gray-700">
                             <option value="">-- اختر المدرسة --</option>
-                            ${filteredSchools.map(s => `<option value="${s.code}" ${state.loginForm.school === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
+                            ${filteredSchools.map(s => `<option value="${s.code}" ${state.loginForm.school == s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
                         </select>
                     </div>
 

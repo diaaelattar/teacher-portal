@@ -178,8 +178,7 @@
             class="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-right">
             <div>
                 <p class="font-bold text-slate-200 text-lg">إدارة العمرانية التعليمية 2025</p>
-                <p class="text-sm mt-1">برعاية مدير عام الإدارة <span class="text-yellow-500 font-bold">أ / سعاد
-                        محمد</span></p>
+                <p class="text-sm mt-1 italic">جميع حقوق النشر والبرمجة محفوظة © 2025</p>
             </div>
 
             <div class="flex flex-col items-center md:items-end">
@@ -203,6 +202,7 @@
         ];
 
         let API_URL = CONFIG_API_URL || localStorage.getItem('TEACHER_APP_API_URL') || '';
+        const LOGO_URL = "https://i.ibb.co/VmmS6L8/logo-omraneya.jpg"; // رابط شعار الإدارة الاحترافي
 
         // --- State ---
         const state = {
@@ -350,8 +350,11 @@
                     <div class="max-w-md w-full mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col">
                     <div class="bg-gradient-to-br from-blue-700 to-blue-900 p-8 text-white text-center relative overflow-hidden">
                         <div class="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                        <div class="relative z-10 mb-4 inline-block p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl">
+                            <img src="${LOGO_URL}" alt="Logo" class="w-16 h-16 object-contain rounded-lg shadow-sm" onerror="this.src='https://via.placeholder.com/64?text=LOGO'">
+                        </div>
                         <h1 class="text-3xl font-black mb-2 tracking-tight">بوابة المعلمين</h1>
-                        <p class="text-blue-100 font-medium text-sm">نظام تسجيل وتحديث البيانات الموحد</p>
+                        <p class="text-blue-100 font-medium text-sm">إدارة العمرانية التعليمية - نظام التسجيل الموحد</p>
                     </div>
 
                     <div class="flex border-b">
@@ -476,9 +479,12 @@
 
             if (res.status === 'success') {
                 if (res.data) {
-                    // BLOCK LOGIN for existing teachers - as per latest user request
-                    showToast(`عذراً، أنت مسجل بالفعل في مدرسة (${res.data.schoolName}). برجاء التواصل مع إدارة مدرستك لتعديل البيانات.`, 'info');
-                    render(); // Stay on login page
+                    // ALLOW LOGIN for existing teachers
+                    showToast(`أهلاً بك مرة أخرى. تم التعرف على بياناتك المسجلة بمدرسة (${res.data.schoolName}). يمكنك المعاينة والطباعة الآن.`, 'success');
+                    state.user = { ...res.data, type: 'teacher' };
+                    state.editingIndex = null;
+                    state.currentView = 'teacher_dashboard';
+                    render();
                 } else {
                     // Allow registration for new teachers
                     state.user = { nid: nid, type: 'teacher' };
@@ -542,8 +548,8 @@
             app.innerHTML = `
                 <nav class="bg-gradient-to-l from-slate-900 to-slate-800 text-white shadow-lg rounded-t-xl overflow-hidden mb-6 flex justify-between p-4 items-center">
                     <div class="flex items-center gap-4">
-                        <div class="bg-white/10 p-2 rounded-lg"><i data-lucide="building-2" class="w-8 h-8 text-yellow-500"></i></div>
-                        <div><h2 class="font-bold text-xl text-yellow-500 font-cairo">بوابة المدارس</h2><p class="text-xs text-gray-300">مرحباً: ${state.user.name}</p></div>
+                        <div class="bg-white p-1 rounded-lg shadow-inner"><img src="${LOGO_URL}" class="w-10 h-10 object-contain"></div>
+                        <div><h2 class="font-bold text-xl text-yellow-500 font-cairo">بوابة المدارس</h2><p class="text-xs text-gray-300">إدارة العمرانية | مرحباً: ${state.user.name}</p></div>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="printSchoolTeacherList()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex gap-2"><i data-lucide="printer" class="w-4 h-4"></i> طباعة الكشف المجمع</button>
@@ -561,8 +567,8 @@
             app.innerHTML = `
                 <nav class="bg-gradient-to-l from-blue-900 to-blue-800 text-white shadow-lg rounded-t-xl overflow-hidden mb-6 flex justify-between p-4 items-center">
                     <div class="flex items-center gap-4">
-                        <div class="bg-white/10 p-2 rounded-lg"><i data-lucide="user" class="w-8 h-8 text-yellow-500"></i></div>
-                        <div><h2 class="font-bold text-xl text-yellow-500 font-cairo">بوابة المعلمين</h2><p class="text-xs text-gray-300">مرحباً: ${state.user.name || 'مستخدم جديد'}</p></div>
+                        <div class="bg-white p-1 rounded-lg shadow-inner"><img src="${LOGO_URL}" class="w-10 h-10 object-contain"></div>
+                        <div><h2 class="font-bold text-xl text-yellow-500 font-cairo">بوابة المعلمين</h2><p class="text-xs text-gray-300">إدارة العمرانية | مرحباً: ${state.user.name || 'مستخدم جديد'}</p></div>
                     </div>
                     <div class="flex gap-2">
                         ${state.user.name ? `<button onclick="printTeacherForm()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex gap-2"><i data-lucide="printer" class="w-4 h-4"></i> طباعة الاستمارة</button>` : ''}
@@ -1169,7 +1175,7 @@
                 <body>
                     <div class="header">
                         <div style="font-size: 10px;">محافظة الجيزة<br>مديرية التربية والتعليم<br>إدارة العمرانية التعليمية</div>
-                        <div class="title">كشف مجمع ببيانات المعلمين المسجلين<br>${s.name} (${s.stageName})</div>
+                        <div style="text-align: center;"><img src="${LOGO_URL}" style="height: 60px; margin-bottom: 5px;"><div class="title">كشف مجمع ببيانات المعلمين المسجلين<br>${s.name} (${s.stageName})</div></div>
                         <div style="font-size: 10px; text-align: left;">تاريخ الكشف: ${new Date().toLocaleDateString('ar-EG')}</div>
                     </div>
                     <table>
@@ -1239,7 +1245,7 @@
                 <body>
                     <div class="header">
                         <div style="font-size: 12px;">محافظة الجيزة<br>مديرية التربية والتعليم<br>إدارة العمرانية التعليمية</div>
-                        <div style="font-weight: bold; font-size: 18px; text-align: center;">استمارة تسجيل بيانات معلم<br><span style="font-size: 14px; font-weight: normal;">(قاعدة البيانات الموحدة)</span></div>
+                        <div style="text-align: center;"><img src="${LOGO_URL}" style="height: 70px; margin-bottom: 5px;"><div style="font-weight: bold; font-size: 20px;">استمارة تسجيل بيانات معلم</div><div style="font-size: 14px; font-weight: normal;">(قاعدة البيانات الموحدة)</div></div>
                         <div style="text-align: left; font-size: 12px;">تاريخ الطباعة:<br>${new Date().toLocaleDateString('ar-EG')}</div>
                     </div>
                     

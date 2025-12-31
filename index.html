@@ -215,6 +215,7 @@
             editingIndex: null,
             editingSchool: false,
             loginForm: { stage: '', type: '', school: '', password: '' },
+            tempFormData: {}, // For teacher registration persistence
             teacherLoginMode: false, // Toggle between School and Teacher login
             regFormStage: '' // For teacher self-registration stage filtering
         };
@@ -257,17 +258,20 @@
         async function sendData(action, payload) {
             state.isLoading = true; render();
             try {
-                await fetch(API_URL, {
+                // Use text/plain to avoid CORS preflight (OPTIONS) which GAS doesn't handle well
+                const response = await fetch(API_URL, {
                     method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ action: action, ...payload })
                 });
+
+                const res = await response.json();
                 state.isLoading = false; render();
-                return { status: 'success' };
+                return res;
             } catch (e) {
                 state.isLoading = false; render();
-                return { status: 'error', message: e.message };
+                console.error('API Error:', e);
+                return { status: 'error', message: 'فشل الاتصال بالسيرفر: ' + e.toString() };
             }
         }
 
@@ -475,6 +479,7 @@
                 } else {
                     // Allow registration for new teachers
                     state.user = { nid: nid, type: 'teacher' };
+                    state.tempFormData = { nid: nid }; // Initialize form with NID
                     state.editingIndex = null;
                     state.regFormStage = '';
                     state.currentView = 'teacher_dashboard';
@@ -579,6 +584,12 @@
                     if (state.editingIndex) populateTeacherForm();
                 }
             }, 50);
+        }
+
+        // --- Form Helper ---
+        function handleFormChange(name, val) {
+            state.tempFormData[name] = val;
+            // No need to render here to avoid excessive re-renders while typing
         }
 
         function renderSchoolContactSection() {
@@ -701,13 +712,13 @@
                         </h3>
                         ${(state.user.type === 'school' && state.editingIndex !== null) ? `<button onclick="cancelEdit()" class="text-xs text-red-500 bg-red-50 px-3 py-1 rounded-full">إلغاء</button>` : ''}
                      </div>
-                     <form onsubmit="handleRegister(event)" id="teacherForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <form onsubmit="handleRegister(event)" id="teacherForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="space-y-4">
-                             <div><label class="block text-xs font-bold text-gray-700 mb-1">الرقم القومي <span class="text-red-500">*</span></label><input type="text" name="nid" maxlength="14" class="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500 text-left font-mono" oninput="handleNIDInput(this)" required placeholder="14 digit NID"><div id="nidFeedback" class="text-[10px] h-4 mt-1"></div></div>
-                             <div><label class="block text-xs font-bold text-gray-700 mb-1">الاسم رباعي <span class="text-red-500">*</span></label><input type="text" name="name" oninput="this.value = this.value.replace(/[^\\u0600-\\u06FF\\s]/g, '')" class="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500" required></div>
+                             <div><label class="block text-xs font-bold text-gray-700 mb-1">الرقم القومي <span class="text-red-500">*</span></label><input type="text" name="nid" value="${state.tempFormData.nid || ''}" maxlength="14" class="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500 text-left font-mono" oninput="handleFormChange('nid', this.value); handleNIDInput(this)" required placeholder="14 digit NID"><div id="nidFeedback" class="text-[10px] h-4 mt-1"></div></div>
+                             <div><label class="block text-xs font-bold text-gray-700 mb-1">الاسم رباعي <span class="text-red-500">*</span></label><input type="text" name="name" value="${state.tempFormData.name || ''}" oninput="handleFormChange('name', this.value); this.value = this.value.replace(/[^\\u0600-\\u06FF\\s]/g, '')" class="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500" required></div>
                              <div class="grid grid-cols-2 gap-4">
-                                <div><label class="text-xs block mb-1">المحمول <span class="text-red-500">*</span></label><input type="tel" name="phone" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required class="w-full p-2 border rounded"></div>
-                                <div><label class="text-xs block mb-1">العنوان</label><input type="text" name="address" oninput="this.value = this.value.replace(/[^\\u0600-\\u06FF\\s0-9\\s\\.\\-\\/]/g, '')" class="w-full p-2 border rounded"></div>
+                                <div><label class="text-xs block mb-1">المحمول <span class="text-red-500">*</span></label><input type="tel" name="phone" value="${state.tempFormData.phone || ''}" oninput="handleFormChange('phone', this.value); this.value = this.value.replace(/[^0-9]/g, '')" required class="w-full p-2 border rounded"></div>
+                                <div><label class="text-xs block mb-1">العنوان</label><input type="text" name="address" value="${state.tempFormData.address || ''}" oninput="handleFormChange('address', this.value); this.value = this.value.replace(/[^\\u0600-\\u06FF\\s0-9\\s\\.\\-\\/]/g, '')" class="w-full p-2 border rounded"></div>
                              </div>
                              ${isTeacher ? `
                              <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 space-y-4">
@@ -724,38 +735,39 @@
                                     </div>
                                     <div class="${!state.regFormStage ? 'opacity-50 pointer-events-none' : ''}">
                                         <label class="text-xs block mb-1 font-bold text-blue-800">اختر المدرسة <span class="text-red-500">*</span></label>
-                                        <select name="schoolCode" ${!state.regFormStage ? 'disabled' : ''} required class="w-full p-2 border rounded bg-white text-sm" onchange="const s = state.schools.find(x=>x.code===this.value); this.form.elements['schoolName'].value = s ? s.name : ''">
+                                        <select name="schoolCode" ${!state.regFormStage ? 'disabled' : ''} required class="w-full p-2 border rounded bg-white text-sm" onchange="handleFormChange('schoolCode', this.value); const s = state.schools.find(x=>x.code===this.value); this.form.elements['schoolName'].value = s ? s.name : ''; handleFormChange('schoolName', s ? s.name : '')">
                                             <option value="">-- اختر مدرستك --</option>
-                                            ${state.schools.filter(s => s.stage === state.regFormStage).map(s => `<option value="${s.code}">${s.name}</option>`).join('')}
+                                            ${state.schools.filter(s => s.stage === state.regFormStage).map(s => `<option value="${s.code}" ${state.tempFormData.schoolCode === s.code ? 'selected' : ''}>${s.name}</option>`).join('')}
                                         </select>
                                     </div>
                                 </div>
-                                <input type="hidden" name="schoolName">
+                                <input type="hidden" name="schoolName" value="${state.tempFormData.schoolName || ''}">
                              </div>
                              ` : ''}
                         </div>
                         <div class="space-y-4">
                              <div class="grid grid-cols-2 gap-4">
-                                <div><label class="text-xs block mb-1">المادة <span class="text-red-500">*</span></label><select name="subject" required class="w-full p-2 border rounded bg-white"><option value="">اختر...</option><option>لغة عربية</option><option>رياضيات</option><option>رياضيات لغات</option><option>لغة إنجليزية</option><option>علوم</option><option>علوم لغات</option><option>دراسات</option><option>تربية مسيحية</option><option>جغرافيا</option><option>تاريخ</option><option>فيزياء</option><option>فيزياء لغات</option><option>كيمياء</option><option>كيمياء لغات</option><option>أحياء</option><option>أحياء لغات</option><option>علوم متكاملة</option><option>علم نفس</option><option>فلسفة ومنطق</option><option>أنشطة</option><option>مواد تجارية</option></select></div>
-                                <div><label class="text-xs block mb-1">كود المعلم</label><input type="text" name="teacherCode" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full p-2 border rounded"></div>
+                                <div><label class="text-xs block mb-1">المادة <span class="text-red-500">*</span></label><select name="subject" required onchange="handleFormChange('subject', this.value)" class="w-full p-2 border rounded bg-white"><option value="">اختر...</option><option ${state.tempFormData.subject === 'لغة عربية' ? 'selected' : ''}>لغة عربية</option><option ${state.tempFormData.subject === 'رياضيات' ? 'selected' : ''}>رياضيات</option><option ${state.tempFormData.subject === 'رياضيات لغات' ? 'selected' : ''}>رياضيات لغات</option><option ${state.tempFormData.subject === 'لغة إنجليزية' ? 'selected' : ''}>لغة إنجليزية</option><option ${state.tempFormData.subject === 'علوم' ? 'selected' : ''}>علوم</option><option ${state.tempFormData.subject === 'علوم لغات' ? 'selected' : ''}>علوم لغات</option><option ${state.tempFormData.subject === 'دراسات' ? 'selected' : ''}>دراسات</option><option ${state.tempFormData.subject === 'تربية مسيحية' ? 'selected' : ''}>تربية مسيحية</option><option ${state.tempFormData.subject === 'جغرافيا' ? 'selected' : ''}>جغرافيا</option><option ${state.tempFormData.subject === 'تاريخ' ? 'selected' : ''}>تاريخ</option><option ${state.tempFormData.subject === 'فيزياء' ? 'selected' : ''}>فيزياء</option><option ${state.tempFormData.subject === 'فيزياء لغات' ? 'selected' : ''}>فيزياء لغات</option><option ${state.tempFormData.subject === 'كيمياء' ? 'selected' : ''}>كيمياء</option><option ${state.tempFormData.subject === 'كيمياء لغات' ? 'selected' : ''}>كيمياء لغات</option><option ${state.tempFormData.subject === 'أحياء' ? 'selected' : ''}>أحياء</option><option ${state.tempFormData.subject === 'أحياء لغات' ? 'selected' : ''}>أحياء لغات</option><option ${state.tempFormData.subject === 'علوم متكاملة' ? 'selected' : ''}>علوم متكاملة</option><option ${state.tempFormData.subject === 'علم نفس' ? 'selected' : ''}>علم نفس</option><option ${state.tempFormData.subject === 'فلسفة ومنطق' ? 'selected' : ''}>فلسفة ومنطق</option><option ${state.tempFormData.subject === 'أنشطة' ? 'selected' : ''}>أنشطة</option><option ${state.tempFormData.subject === 'مواد تجارية' ? 'selected' : ''}>مواد تجارية</option></select></div>
+                                <div><label class="text-xs block mb-1">كود المعلم</label><input type="text" name="teacherCode" value="${state.tempFormData.teacherCode || ''}" oninput="handleFormChange('teacherCode', this.value); this.value = this.value.replace(/[^0-9]/g, '')" class="w-full p-2 border rounded"></div>
                              </div>
                              <div class="grid grid-cols-2 gap-4">
-                                <div><label class="text-xs block mb-1">المؤهل <span class="text-red-500">*</span></label><input type="text" name="qualification" required class="w-full p-2 border rounded"></div>
-                                <div><label class="text-xs block mb-1">الجامعة</label><input type="text" name="university" class="w-full p-2 border rounded"></div>
+                                <div><label class="text-xs block mb-1">المؤهل <span class="text-red-500">*</span></label><input type="text" name="qualification" value="${state.tempFormData.qualification || ''}" oninput="handleFormChange('qualification', this.value)" required class="w-full p-2 border rounded"></div>
+                                <div><label class="text-xs block mb-1">الجامعة</label><input type="text" name="university" value="${state.tempFormData.university || ''}" oninput="handleFormChange('university', this.value)" class="w-full p-2 border rounded"></div>
                              </div>
                              <div class="grid grid-cols-3 gap-2">
-                                <div><label class="text-xs block mb-1">سنة التخرج</label><input type="number" name="gradYear" class="w-full p-2 border rounded"></div>
-                                <div><label class="text-xs block mb-1">التقدير</label><select name="grade" class="w-full p-2 border rounded"><option>جيد</option><option>جيد جدا</option><option>امتياز</option><option>مقبول</option></select></div>
-                                <div><label class="text-xs block mb-1">التعيين</label><select name="contractType" class="w-full p-2 border rounded"><option>أساسي</option><option>بالأجر</option><option>بالمعاش</option></select></div>
+                                <div><label class="text-xs block mb-1">سنة التخرج</label><input type="number" name="gradYear" value="${state.tempFormData.gradYear || ''}" oninput="handleFormChange('gradYear', this.value)" class="w-full p-2 border rounded"></div>
+                                <div><label class="text-xs block mb-1">التقدير</label><select name="grade" onchange="handleFormChange('grade', this.value)" class="w-full p-2 border rounded"><option ${state.tempFormData.grade === 'جيد' ? 'selected' : ''}>جيد</option><option ${state.tempFormData.grade === 'جيد جدا' ? 'selected' : ''}>جيد جدا</option><option ${state.tempFormData.grade === 'امتياز' ? 'selected' : ''}>امتياز</option><option ${state.tempFormData.grade === 'مقبول' ? 'selected' : ''}>مقبول</option></select></div>
+                                <div><label class="text-xs block mb-1">التعيين</label><select name="contractType" onchange="handleFormChange('contractType', this.value)" class="w-full p-2 border rounded"><option ${state.tempFormData.contractType === 'أساسي' ? 'selected' : ''}>أساسي</option><option ${state.tempFormData.contractType === 'بالأجر' ? 'selected' : ''}>بالأجر</option><option ${state.tempFormData.contractType === 'بالمعاش' ? 'selected' : ''}>بالمعاش</option></select></div>
                              </div>
                              <div class="grid grid-cols-2 gap-4">
-                                <div><label class="text-xs block mb-1">تاريخ العمل</label><input type="date" name="startDate" class="w-full p-2 border rounded text-xs"></div>
-                                <div><label class="text-xs block mb-1">دبلوم تربوي</label><input type="text" name="diploma" class="w-full p-2 border rounded"></div>
+                                <div><label class="text-xs block mb-1">تاريخ العمل</label><input type="date" name="startDate" value="${state.tempFormData.startDate || ''}" onchange="handleFormChange('startDate', this.value)" class="w-full p-2 border rounded text-xs"></div>
+                                <div><label class="text-xs block mb-1">دبلوم تربوي</label><input type="text" name="diploma" value="${state.tempFormData.diploma || ''}" oninput="handleFormChange('diploma', this.value)" class="w-full p-2 border rounded"></div>
                              </div>
-                             <input type="hidden" name="dob" id="dobHidden"><input type="hidden" name="gov" id="govHidden">
+                             <input type="hidden" name="dob" id="dobHidden" value="${state.tempFormData.dob || ''}">
+                             <input type="hidden" name="gov" id="govHidden" value="${state.tempFormData.gov || ''}">
                         </div>
                         <div class="lg:col-span-2 pt-4 border-t"><button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg flex justify-center gap-2"><i data-lucide="save"></i> ${state.editingIndex ? 'حفظ التعديلات' : 'إتمام التسجيل الآن'}</button></div>
-                     </form>
+                      </form>
                  </div>`;
         }
 
@@ -1116,12 +1128,13 @@
                 showToast(state.editingIndex ? 'تم التعديل بنجاح' : 'تم التسجيل بنجاح', 'success');
                 if (state.user.type === 'school') {
                     state.editingIndex = null;
+                    state.tempFormData = {}; // Clear temp data after school save
                     await loadSchoolData();
                     document.getElementById('teacherForm').reset();
                 } else {
                     // Update local teacher user data after self-edit
                     state.user = { ...state.user, ...data };
-                    state.editingIndex = data.nid;
+                    // state.editingIndex = data.nid; // No need as we block login for existing
                     render();
                 }
             }

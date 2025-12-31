@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <!-- Chart.js for Admin -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -71,71 +72,6 @@
         .animate-fade-in {
             animation: fadeIn 0.4s ease-out forwards;
         }
-
-        /* Print Styles */
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-
-            body {
-                background: white;
-            }
-
-            .print-container {
-                padding: 0;
-                margin: 0;
-                width: 100%;
-                direction: rtl;
-            }
-
-            .app-header,
-            nav,
-            button,
-            form {
-                display: none !important;
-            }
-
-            .print-only {
-                display: block !important;
-            }
-
-            .report-card {
-                border: 2px solid #000;
-                padding: 20px;
-                margin-top: 20px;
-            }
-
-            .report-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 2px solid #000;
-                padding-bottom: 10px;
-                margin-bottom: 20px;
-            }
-
-            .data-grid {
-                display: grid;
-                grid-template-cols: 1fr 1fr;
-                gap: 15px;
-            }
-
-            .data-item {
-                border-bottom: 1px dotted #ccc;
-                padding: 5px 0;
-            }
-
-            .signature-area {
-                margin-top: 40px;
-                display: flex;
-                justify-content: space-between;
-            }
-        }
-
-        .print-only {
-            display: none;
-        }
     </style>
 </head>
 
@@ -180,7 +116,11 @@
                 <p class="font-bold text-slate-200 text-lg uppercase tracking-wider">إدارة العمرانية التعليمية 2025</p>
                 <p class="text-sm mt-1">تحت رعاية أ / <span class="text-yellow-500 font-bold">سعاد محمد</span> - مدير
                     عام الإدارة</p>
-                <p class="text-[10px] mt-2 italic opacity-50">جميع حقوق النشر والبرمجة محفوظة © 2025</p>
+                <div class="flex items-center gap-2 mt-2 opacity-50 justify-center md:justify-start">
+                    <span class="text-[9px] bg-slate-800 px-2 py-0.5 rounded border border-slate-700 font-mono">Build
+                        ID: 2026-01-01</span>
+                    <p class="text-[10px] italic">جميع حقوق النشر والبرمجة محفوظة © 2026</p>
+                </div>
             </div>
 
             <div class="flex flex-col items-center md:items-end">
@@ -188,18 +128,14 @@
                     class="text-[10px] bg-slate-800 px-3 py-1 rounded-full border border-slate-700 mb-1 text-slate-500">تطوير
                     وبرمجة</span>
                 <span class="font-bold text-blue-400 font-mono tracking-wide text-lg">Diaa El Attar</span>
+                <span class="text-[10px] text-slate-600 font-bold mt-1">Version: <span
+                        class="text-yellow-600">${APP_VERSION}</span></span>
             </div>
-        </div>
-        <div class="text-center text-xs text-slate-500 mt-4">
-            <p>Office of Education - Integrated Enrollment System</p>
         </div>
     </footer>
 
     <script>
         // --- Configuration & Constants ---
-
-        // ⚠️ هام جداً: ضع رابط Apps Script هنا بين علامتي التنصيص ليعمل البرنامج مباشرة
-        const CONFIG_API_URL = "https://script.google.com/macros/s/AKfycbwlHw2s0uE5_08BbRSrukw6CHjg7MwVZcD0HKgVnmJzqy-_S4uoFzFFcvO7IcnpaDo/exec";
 
         // Initial Mock Schools (Fallback until Cloud Fetch)
         let SCHOOLS_DB = [
@@ -207,22 +143,25 @@
             { code: "admin", password: "admin123", name: "General Admin", stage: "All", stageName: "الإدارة", type: "admin", typeName: "مسؤول النظام" }
         ];
 
+        const CONFIG_API_URL = "https://script.google.com/macros/s/AKfycbwlHw2s0uE5_08BbRSrukw6CHjg7MwVZcD0HKgVnmJzqy-_S4uoFzFFcvO7IcnpaDo/exec";
         let API_URL = CONFIG_API_URL || localStorage.getItem('TEACHER_APP_API_URL') || '';
-        const LOGO_URL = "https://i.ibb.co/VmmS6L8/logo-omraneya.jpg";
+        const LOGO_URL = "./logo.jpg"; // استخدام اللوجو المحلي من Github
+        const APP_VERSION = "v2.5.0 (Enterprise)";
+
         // --- State ---
         const state = {
             currentView: API_URL ? 'login' : 'setup', // setup | login | dashboard | admin
             user: null,
             teachers: [],
-            schools: [], // Dynamic Schools List
+            schools: [...SCHOOLS_DB], // تهيئة بالبيانات الافتراضية لضمان التشغيل المحلي
             isLoading: false,
             adminData: [],
             editingIndex: null,
             editingSchool: false,
             loginForm: { stage: '', type: '', school: '', password: '' },
-            tempFormData: {}, // For teacher registration persistence
-            teacherLoginMode: false, // Toggle between School and Teacher login
-            regFormStage: '' // For teacher self-registration stage filtering
+            tempFormData: {},
+            teacherLoginMode: false,
+            regFormStage: ''
         };
 
         const app = document.getElementById('app');
@@ -248,6 +187,20 @@
             setTimeout(() => { toast.classList.remove('toast-enter-active'); toast.classList.add('toast-exit-active'); setTimeout(() => toast.remove(), 300); }, 3000);
         }
 
+        // --- Core Render Logic ---
+        function render() {
+            app.innerHTML = '';
+            if (state.isLoading) { renderLoading(); return; }
+            switch (state.currentView) {
+                case 'setup': renderSetup(); break;
+                case 'login': renderLogin(); break;
+                case 'dashboard': renderDashboard(); break;
+                case 'teacher_dashboard': renderTeacherDashboard(); break;
+                case 'admin': renderAdminDashboard(); break;
+            }
+            lucide.createIcons();
+        }
+
         function renderLoading() {
             app.innerHTML = `
                 <div class="flex flex-col items-center justify-center h-[80vh]">
@@ -265,13 +218,11 @@
         async function sendData(action, payload) {
             state.isLoading = true; render();
             try {
-                // Use text/plain to avoid CORS preflight (OPTIONS) which GAS doesn't handle well
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ action: action, ...payload })
                 });
-
                 const res = await response.json();
                 state.isLoading = false; render();
                 return res;
@@ -307,7 +258,8 @@
                         <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
                             <i data-lucide="cloud-cog" class="w-8 h-8"></i>
                         </div>
-                        <h2 class="text-2xl font-bold mb-2">إعداد النظام</h2>
+                        <h2 class="text-2xl font-bold mb-1">إعداد النظام</h2>
+                        <p class="text-[10px] text-slate-400 font-bold mb-6">${APP_VERSION}</p>
                         <input type="text" id="apiUrlInput" class="w-full p-3 border rounded-lg text-left text-sm font-mono mb-4 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://script.google.com/macros/s/..../exec">
                         <button onclick="saveConfig()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors">حفظ واتصال</button>
                     </div>
@@ -329,27 +281,17 @@
             const res = await fetchData('getSchools');
             if (res.status === 'success' && res.data.length > 0) {
                 SCHOOLS_DB = res.data;
-                state.schools = res.data;
                 // Add Admin backdoor if missing from sheet
                 if (!SCHOOLS_DB.some(s => s.code === 'admin')) {
-                    const admin = { code: "admin", password: "admin123", name: "General Admin", stage: "All", stageName: "الإدارة", type: "admin", typeName: "مسؤول النظام" };
-                    SCHOOLS_DB.push(admin);
-                    state.schools.push(admin);
+                    SCHOOLS_DB.push({ code: "admin", password: "admin123", name: "General Admin", stage: "All", stageName: "الإدارة", type: "admin", typeName: "مسؤول النظام" });
                 }
+                state.schools = SCHOOLS_DB;
             }
             state.currentView = 'login';
             render();
         }
 
         function renderLogin() {
-            const activeStage = state.loginForm.stage;
-            const activeType = state.loginForm.type;
-
-            // Filters based on SCHOOLS_DB
-            const stages = [...new Set(SCHOOLS_DB.filter(s => s.type !== 'admin').map(s => JSON.stringify({ c: s.stage, n: s.stageName })))].map(JSON.parse);
-            const types = activeStage ? [...new Set(SCHOOLS_DB.filter(s => s.stage === activeStage).map(s => JSON.stringify({ c: s.type, n: s.typeName })))].map(JSON.parse) : [];
-            const schools = (activeStage && activeType) ? SCHOOLS_DB.filter(s => s.stage === activeStage && s.type === activeType) : [];
-
             app.innerHTML = `
                 <div class="flex flex-col items-center justify-center min-h-[85vh]">
                     <div class="max-w-md w-full mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col">
@@ -358,8 +300,9 @@
                         <div class="relative z-10 mb-4 inline-block p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl">
                             <img src="${LOGO_URL}" alt="Logo" class="w-16 h-16 object-contain rounded-lg shadow-sm" onerror="this.src='https://via.placeholder.com/64?text=LOGO'">
                         </div>
-                        <h1 class="text-3xl font-black mb-2 tracking-tight">بوابة المعلمين</h1>
-                        <p class="text-blue-100 font-medium text-sm">إدارة العمرانية التعليمية - نظام التسجيل الموحد</p>
+                        <h1 class="text-3xl font-black mb-1 tracking-tight">بوابة المعلمين</h1>
+                        <p class="text-blue-100 font-medium text-[11px] mb-1">إدارة العمرانية التعليمية - نظام التسجيل الموحد</p>
+                        <span class="inline-block px-2 py-0.5 bg-white/10 rounded-full text-[9px] font-bold border border-white/20">${APP_VERSION}</span>
                     </div>
 
                     <div class="flex border-b">
@@ -396,8 +339,8 @@
 
         function renderSchoolLoginFields() {
             const filteredSchools = state.schools.filter(s =>
-                (state.loginForm.stage ? s.stage === state.loginForm.stage : true) &&
-                (state.loginForm.type ? s.type === state.loginForm.type : true) &&
+                (state.loginForm.stage ? s.stage == state.loginForm.stage : true) &&
+                (state.loginForm.type ? s.type == state.loginForm.type : true) &&
                 s.type !== 'admin'
             );
 
@@ -465,6 +408,7 @@
                 </div>
             `;
         }
+
         function toggleAdminLogin() {
             const s = document.getElementById('schoolLoginPanel');
             const a = document.getElementById('adminLoginPanel');
@@ -476,56 +420,51 @@
             const nid = document.getElementById('teacherNID').value;
             if (nid.length !== 14) return showToast('يرجى إدخال 14 رقماً للرقم القومي', 'warning');
 
-            state.isLoading = true;
-            render();
-
+            state.isLoading = true; render();
             const res = await sendData('getTeacher', { nid: nid });
             state.isLoading = false;
 
             if (res.status === 'success') {
                 if (res.data) {
-                    // ALLOW LOGIN for existing teachers
                     showToast(`أهلاً بك مرة أخرى. تم التعرف على بياناتك المسجلة بمدرسة (${res.data.schoolName}). يمكنك المعاينة والطباعة الآن.`, 'success');
-                    state.user = { ...res.data, type: 'teacher' };
-                    state.editingIndex = nid; // CRITICAL: Mark as editing so handleRegister knows it is an update
-                    state.tempFormData = { ...res.data }; // Initialize form with existing data
+
+                    // Enrichment: Ensure school name and stage are present
+                    const school = state.schools.find(s => String(s.code).trim() === String(res.data.schoolCode).trim());
+                    const enrichedData = {
+                        ...res.data,
+                        schoolName: res.data.schoolName || (school ? school.name : ''),
+                        schoolStage: res.data.schoolStage || (school ? school.stageName : '')
+                    };
+
+                    state.user = { ...enrichedData, type: 'teacher' };
+                    state.editingIndex = nid; // Sync logic: set editing index for existing teachers
+                    state.tempFormData = { ...enrichedData }; // Initialize form with existing data
 
                     // Map school to stage to enable dropdowns
-                    const school = state.schools.find(s => s.code === res.data.schoolCode);
                     if (school) state.regFormStage = school.stage;
 
                     state.currentView = 'teacher_dashboard';
                     render();
                 } else {
-                    // Allow registration for new teachers
                     state.user = { nid: nid, type: 'teacher' };
-                    state.tempFormData = { nid: nid }; // Initialize form with NID
+                    state.tempFormData = { nid: nid };
                     state.editingIndex = null;
                     state.regFormStage = '';
                     state.currentView = 'teacher_dashboard';
                     render();
                 }
-            } else {
-                showToast(res.message, 'error');
-                render();
-            }
+            } else { showToast(res.message, 'error'); render(); }
         }
 
         async function handleSchoolLogin() {
             const code = state.loginForm.school;
             const pass = state.loginForm.password;
-
-            if (!code) return showToast('يرجى اختيار المدرسة أولاً', 'warning');
-            if (!pass) return showToast('يرجى إدخال كلمة المرور', 'warning');
-
-            const school = state.schools.find(s => s.code == code && s.password == pass);
+            const school = SCHOOLS_DB.find(s => s.code == code && s.password == pass);
             if (school) {
                 state.user = school;
                 state.currentView = 'dashboard';
                 await loadSchoolData();
-            } else {
-                showToast('كلمة المرور غير صحيحة أو البيانات غير متطابقة', 'error');
-            }
+            } else { showToast('بيانات غير صحيحة', 'error'); }
         }
 
         async function handleAdminLogin() {
@@ -554,7 +493,6 @@
             render();
         }
 
-        // --- DASHBOARD (Teacher Entry) ---
         function renderDashboard() {
             app.innerHTML = `
                 <nav class="bg-gradient-to-l from-slate-900 to-slate-800 text-white shadow-lg rounded-t-xl overflow-hidden mb-6 flex justify-between p-4 items-center">
@@ -563,8 +501,9 @@
                         <div><h2 class="font-bold text-xl text-yellow-500 font-cairo">بوابة المدارس</h2><p class="text-xs text-gray-300">إدارة العمرانية | مرحباً: ${state.user.name}</p></div>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="printSchoolTeacherList()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex gap-2"><i data-lucide="printer" class="w-4 h-4"></i> طباعة الكشف المجمع</button>
-                        <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> خروج</button>
+                        <button onclick="printSchoolTeacherList()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-[10px] md:text-xs font-bold flex gap-2 items-center"><i data-lucide="printer" class="w-4 h-4"></i> طباعة الكشف</button>
+                        <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-[10px] md:text-xs font-bold flex gap-2 items-center"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> تصدير Excel</button>
+                        <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-[10px] md:text-xs font-bold flex gap-2 items-center"><i data-lucide="log-out" class="w-4 h-4"></i> خروج</button>
                     </div>
                 </nav>
                 ${renderSchoolContactSection()}
@@ -586,17 +525,8 @@
                         <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> خروج</button>
                     </div>
                 </nav>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-blue-50 mb-6 no-print">
-                    <h3 class="text-blue-900 font-bold mb-2 flex items-center gap-2">
-                        <i data-lucide="info-circle" class="w-5 h-5"></i>
-                        تعليمات هامة
-                    </h3>
-                    <p class="text-xs text-gray-600 leading-relaxed">يرجى التأكد من دقة البيانات المدخلة واختيار المدرسة الصحيحة. يمكنك العودة في أي وقت لتعديل بياناتك باستخدام رقمك القومي.</p>
-                </div>
                 ${renderTeacherForm()}
            `;
-
-            // Auto fill the NID since it was used for login
             setTimeout(() => {
                 const f = document.getElementById('teacherForm');
                 if (f) {
@@ -609,10 +539,8 @@
             }, 50);
         }
 
-        // --- Form Helper ---
         function handleFormChange(name, val) {
             state.tempFormData[name] = val;
-            // No need to render here to avoid excessive re-renders while typing
         }
 
         function renderSchoolContactSection() {
@@ -684,7 +612,10 @@
             `;
         }
 
-        // ... (removed setState, toggleElement, showToast, etc. as they are moved up)
+        function toggleElement(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('hidden');
+        }
 
         async function handleUpdateSchoolContact(e) {
             e.preventDefault();
@@ -720,6 +651,7 @@
             }
         }
 
+
         function renderTeacherForm() {
             const isTeacher = state.user.type === 'teacher';
             return `
@@ -728,11 +660,11 @@
                      <div class="flex justify-between items-center mb-6">
                         <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
                             <i data-lucide="${state.editingIndex !== null ? 'edit' : 'user-plus'}" class="text-blue-600"></i>
-                            ${state.editingIndex !== null ? 'تعديل البيانات' : 'تسجيل جديد'}
+                            ${state.editingIndex !== null ? 'تعديل بيانات معلم' : 'تسجيل معلم جديد'}
                         </h3>
-                        ${(state.user.type === 'school' && state.editingIndex !== null) ? `<button onclick="cancelEdit()" class="text-xs text-red-500 bg-red-50 px-3 py-1 rounded-full">إلغاء</button>` : ''}
+                        ${state.editingIndex !== null ? `<button onclick="cancelEdit()" class="text-xs text-red-500 bg-red-50 px-3 py-1 rounded-full">إلغاء</button>` : ''}
                      </div>
-                      <form onsubmit="handleRegister(event)" id="teacherForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                     <form onsubmit="handleRegister(event)" id="teacherForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="space-y-4">
                              <div><label class="block text-xs font-bold text-gray-700 mb-1">الرقم القومي <span class="text-red-500">*</span></label><input type="text" name="nid" value="${state.tempFormData.nid || ''}" maxlength="14" class="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500 text-left font-mono" oninput="handleFormChange('nid', this.value); handleNIDInput(this)" required placeholder="14 digit NID"><div id="nidFeedback" class="text-[10px] h-4 mt-1"></div></div>
                              <div><label class="block text-xs font-bold text-gray-700 mb-1">الاسم رباعي <span class="text-red-500">*</span></label><input type="text" name="name" value="${state.tempFormData.name || ''}" oninput="handleFormChange('name', this.value); this.value = this.value.replace(/[^\\u0600-\\u06FF\\s]/g, '')" class="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500" required></div>
@@ -766,25 +698,24 @@
                              ` : ''}
                         </div>
                         <div class="space-y-4">
-                             <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-2 gap-4">
                                 <div><label class="text-xs block mb-1">المادة <span class="text-red-500">*</span></label><select name="subject" required onchange="handleFormChange('subject', this.value)" class="w-full p-2 border rounded bg-white"><option value="">اختر...</option><option ${state.tempFormData.subject === 'لغة عربية' ? 'selected' : ''}>لغة عربية</option><option ${state.tempFormData.subject === 'رياضيات' ? 'selected' : ''}>رياضيات</option><option ${state.tempFormData.subject === 'رياضيات لغات' ? 'selected' : ''}>رياضيات لغات</option><option ${state.tempFormData.subject === 'لغة إنجليزية' ? 'selected' : ''}>لغة إنجليزية</option><option ${state.tempFormData.subject === 'علوم' ? 'selected' : ''}>علوم</option><option ${state.tempFormData.subject === 'علوم لغات' ? 'selected' : ''}>علوم لغات</option><option ${state.tempFormData.subject === 'دراسات' ? 'selected' : ''}>دراسات</option><option ${state.tempFormData.subject === 'تربية مسيحية' ? 'selected' : ''}>تربية مسيحية</option><option ${state.tempFormData.subject === 'جغرافيا' ? 'selected' : ''}>جغرافيا</option><option ${state.tempFormData.subject === 'تاريخ' ? 'selected' : ''}>تاريخ</option><option ${state.tempFormData.subject === 'فيزياء' ? 'selected' : ''}>فيزياء</option><option ${state.tempFormData.subject === 'فيزياء لغات' ? 'selected' : ''}>فيزياء لغات</option><option ${state.tempFormData.subject === 'كيمياء' ? 'selected' : ''}>كيمياء</option><option ${state.tempFormData.subject === 'كيمياء لغات' ? 'selected' : ''}>كيمياء لغات</option><option ${state.tempFormData.subject === 'أحياء' ? 'selected' : ''}>أحياء</option><option ${state.tempFormData.subject === 'أحياء لغات' ? 'selected' : ''}>أحياء لغات</option><option ${state.tempFormData.subject === 'علوم متكاملة' ? 'selected' : ''}>علوم متكاملة</option><option ${state.tempFormData.subject === 'علم نفس' ? 'selected' : ''}>علم نفس</option><option ${state.tempFormData.subject === 'فلسفة ومنطق' ? 'selected' : ''}>فلسفة ومنطق</option><option ${state.tempFormData.subject === 'أنشطة' ? 'selected' : ''}>أنشطة</option><option ${state.tempFormData.subject === 'مواد تجارية' ? 'selected' : ''}>مواد تجارية</option></select></div>
                                 <div><label class="text-xs block mb-1">كود المعلم</label><input type="text" name="teacherCode" value="${state.tempFormData.teacherCode || ''}" oninput="handleFormChange('teacherCode', this.value); this.value = this.value.replace(/[^0-9]/g, '')" class="w-full p-2 border rounded"></div>
-                             </div>
-                             <div class="grid grid-cols-2 gap-4">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
                                 <div><label class="text-xs block mb-1">المؤهل <span class="text-red-500">*</span></label><input type="text" name="qualification" value="${state.tempFormData.qualification || ''}" oninput="handleFormChange('qualification', this.value)" required class="w-full p-2 border rounded"></div>
                                 <div><label class="text-xs block mb-1">الجامعة</label><input type="text" name="university" value="${state.tempFormData.university || ''}" oninput="handleFormChange('university', this.value)" class="w-full p-2 border rounded"></div>
-                             </div>
-                             <div class="grid grid-cols-3 gap-2">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
                                 <div><label class="text-xs block mb-1">سنة التخرج</label><input type="number" name="gradYear" value="${state.tempFormData.gradYear || ''}" oninput="handleFormChange('gradYear', this.value)" class="w-full p-2 border rounded"></div>
                                 <div><label class="text-xs block mb-1">التقدير</label><select name="grade" onchange="handleFormChange('grade', this.value)" class="w-full p-2 border rounded"><option ${state.tempFormData.grade === 'جيد' ? 'selected' : ''}>جيد</option><option ${state.tempFormData.grade === 'جيد جدا' ? 'selected' : ''}>جيد جدا</option><option ${state.tempFormData.grade === 'امتياز' ? 'selected' : ''}>امتياز</option><option ${state.tempFormData.grade === 'مقبول' ? 'selected' : ''}>مقبول</option></select></div>
                                 <div><label class="text-xs block mb-1">التعيين</label><select name="contractType" onchange="handleFormChange('contractType', this.value)" class="w-full p-2 border rounded"><option ${state.tempFormData.contractType === 'أساسي' ? 'selected' : ''}>أساسي</option><option ${state.tempFormData.contractType === 'بالأجر' ? 'selected' : ''}>بالأجر</option><option ${state.tempFormData.contractType === 'بالمعاش' ? 'selected' : ''}>بالمعاش</option></select></div>
-                             </div>
-                             <div class="grid grid-cols-2 gap-4">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
                                 <div><label class="text-xs block mb-1">تاريخ العمل</label><input type="date" name="startDate" value="${state.tempFormData.startDate || ''}" onchange="handleFormChange('startDate', this.value)" class="w-full p-2 border rounded text-xs"></div>
                                 <div><label class="text-xs block mb-1">دبلوم تربوي</label><input type="text" name="diploma" value="${state.tempFormData.diploma || ''}" oninput="handleFormChange('diploma', this.value)" class="w-full p-2 border rounded"></div>
-                             </div>
-                             <input type="hidden" name="dob" id="dobHidden" value="${state.tempFormData.dob || ''}">
-                             <input type="hidden" name="gov" id="govHidden" value="${state.tempFormData.gov || ''}">
+                            </div>
+                             <div class="grid grid-cols-2 gap-4 hidden"><input type="hidden" name="dob" id="dobHidden" value="${state.tempFormData.dob || ''}"><input type="hidden" name="gov" id="govHidden" value="${state.tempFormData.gov || ''}"></div>
                         </div>
                         <div class="lg:col-span-2 pt-4 border-t"><button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg flex justify-center gap-2"><i data-lucide="save"></i> ${state.editingIndex ? 'حفظ التعديلات' : 'إتمام التسجيل الآن'}</button></div>
                       </form>
@@ -808,7 +739,11 @@
                                         <td class="p-3 text-center text-sm">${t.qualification} (${t.gradYear})<br><span class="text-xs text-gray-400">${t.university || '-'}</span></td>
                                         <td class="p-3 text-center text-blue-600 font-bold">${t.subject}</td>
                                         <td class="p-3 text-center text-xs"><span class="bg-gray-100 px-2 py-1 rounded border">${t.contractType}</span>${t.teacherCode ? `<br><span class="text-gray-400 mt-1 inline-block">كود: ${t.teacherCode}</span>` : ''}</td>
-                                        <td class="p-3 text-center flex justify-center gap-2 items-center"><button onclick="editTeacher('${t.nid}')" class="text-blue-500 hover:bg-blue-100 p-1.5 rounded"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="deleteTeacher('${t.nid}')" class="text-red-500 hover:bg-red-100 p-1.5 rounded"><i data-lucide="trash" class="w-4 h-4"></i></button></td>
+                                         <td class="p-3 text-center flex justify-center gap-2 items-center">
+                                            <button onclick="printTeacherFormByName('${t.nid}')" class="text-green-600 hover:bg-green-100 p-1.5 rounded" title="طباعة الاستمارة"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                                            <button onclick="editTeacher('${t.nid}')" class="text-blue-500 hover:bg-blue-100 p-1.5 rounded" title="تعديل"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                                            <button onclick="deleteTeacher('${t.nid}')" class="text-red-500 hover:bg-red-100 p-1.5 rounded" title="حذف"><i data-lucide="trash" class="w-4 h-4"></i></button>
+                                        </td>
                                     </tr>`).join('') : `<tr><td colspan=6 class="p-6 text-center text-gray-400">لا توجد بيانات</td></tr>`}
                             </tbody>
                         </table>
@@ -817,173 +752,235 @@
         }
 
         function populateTeacherForm() {
-            let t;
-            if (state.user.type === 'teacher') {
-                t = state.user;
-            } else {
-                t = state.teachers.find(x => x.nid == state.editingIndex);
-            }
+            const t = state.teachers.find(x => x.nid == state.editingIndex);
             if (t) {
+                // Update tempFormData with teacher data
+                state.tempFormData = { ...t };
+
                 const f = document.getElementById('teacherForm');
                 for (let k in t) {
-                    if (f.elements[k]) f.elements[k].value = t[k];
+                    if (f.elements[k]) {
+                        let val = t[k];
+                        // Format date properly for HTML5 date input
+                        if (f.elements[k].type === 'date' && val) {
+                            try {
+                                const d = new Date(val);
+                                if (!isNaN(d.getTime())) {
+                                    val = d.toISOString().split('T')[0];
+                                }
+                            } catch (e) { console.error("Date formatting error", e); }
+                        }
+                        f.elements[k].value = val;
+                    }
                 }
             }
         }
 
+        // --- Helpers ---
+        function renderKPICard(label, value, icon, color) {
+            const colors = {
+                blue: 'from-blue-500 to-indigo-600 shadow-blue-500/20',
+                amber: 'from-amber-400 to-orange-600 shadow-amber-500/20',
+                purple: 'from-purple-500 to-fuchsia-600 shadow-purple-500/20',
+                emerald: 'from-emerald-400 to-teal-600 shadow-emerald-500/20'
+            };
+            return `
+                <div class="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 group hover:shadow-xl hover:-translate-y-1 transition-all duration-500 relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-slate-50 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
+                    <div class="relative z-10 flex justify-between items-start">
+                        <div>
+                            <div class="text-slate-400 text-[10px] uppercase font-black tracking-[0.2em] mb-3">${label}</div>
+                            <div class="text-4xl font-black text-slate-800 tracking-tighter">${value}</div>
+                        </div>
+                        <div class="bg-gradient-to-br ${colors[color] || colors.blue} p-4 rounded-2xl shadow-lg text-white group-hover:rotate-12 transition-transform">
+                            <i data-lucide="${icon}" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         // --- ADMIN DASHBOARD ---
         function renderAdminDashboard() {
-            // Stats
             const total = state.adminData ? state.adminData.length : 0;
-            const schoolsCount = state.schools ? state.schools.length : 0;
-            // Analytics
+            const schoolsCount = state.schools ? state.schools.filter(s => s.type !== 'admin' && s.code !== 'admin').length : 0;
+
+            // --- وظائف مساعدة داخلية للتحليل ---
+            const normalizeStage = (s) => {
+                if (!s) return 'غير محدد';
+                const str = String(s).toLowerCase();
+                if (str.includes('ابتد') || str.includes('abdaey')) return 'Abdaey';
+                if (str.includes('إعدا') || str.includes('اعدا') || str.includes('eadady')) return 'Eadady';
+                if (str.includes('ثانو') || str.includes('sanawy')) return 'Sanawy';
+                return s;
+            };
+
+            const STAGE_LABELS = { 'Abdaey': 'المرحلة الابتدائية', 'Eadady': 'المرحلة الإعدادية', 'Sanawy': 'المرحلة الثانوية', 'غير محدد': 'غير محدد' };
+
+            // تهيئة الإحصائيات
             const byGender = { 'ذكر': 0, 'أنثى': 0 };
-            const byStage = { 'Abdaey': 0, 'Eadady': 0, 'Sanawy': 0 };
-            const byGov = {};
-            const topSchools = {};
+            const byStageStats = { 'Abdaey': { total: 0, subjects: {} }, 'Eadady': { total: 0, subjects: {} }, 'Sanawy': { total: 0, subjects: {} }, 'غير محدد': { total: 0, subjects: {} } };
+            const schoolsSummary = {}; // { 'اسم المدرسة': { code, total, subjects: {} } }
+
+            const subjectCrossStats = {}; // { 'مادة': { Abdaey: 0, Eadady: 0, Sanawy: 0, total: 0 } }
 
             if (state.adminData) {
                 state.adminData.forEach(t => {
-                    if (t && t.nid && t.nid.length >= 13) {
-                        const gCode = t.nid.substring(12, 13);
-                        byGender[parseInt(gCode) % 2 !== 0 ? 'ذكر' : 'أنثى']++;
+                    // الربط التلقائي المتقدم لضمان اكتمال البيانات
+                    const school = state.schools.find(s => String(s.code).trim() === String(t.schoolCode || '').trim());
+                    const finalSchoolName = t.schoolName || (school ? school.name : 'مدرسة غير معروفة');
+                    const finalStage = t.schoolStage || (school ? school.stageName || school.stage : 'غير محدد');
+
+                    // 1. إحصائيات النوع
+                    if (t.nid) {
+                        const genderDigit = String(t.nid).trim().charAt(12);
+                        if (genderDigit) byGender[parseInt(genderDigit) % 2 !== 0 ? 'ذكر' : 'أنثى']++;
                     }
-                    if (t.schoolStage) byStage[t.schoolStage] = (byStage[t.schoolStage] || 0) + 1;
-                    if (t.gov) byGov[t.gov] = (byGov[t.gov] || 0) + 1;
-                    if (t.schoolName) topSchools[t.schoolName] = (topSchools[t.schoolName] || 0) + 1;
+
+                    // 2. تحليل المراحل والمواد
+                    const stageKey = normalizeStage(finalStage);
+                    if (byStageStats[stageKey]) {
+                        byStageStats[stageKey].total++;
+                        if (t.subject) {
+                            byStageStats[stageKey].subjects[t.subject] = (byStageStats[stageKey].subjects[t.subject] || 0) + 1;
+
+                            // إحصائيات التخصصات المركزية
+                            if (!subjectCrossStats[t.subject]) {
+                                subjectCrossStats[t.subject] = { Abdaey: 0, Eadady: 0, Sanawy: 0, total: 0 };
+                            }
+                            if (['Abdaey', 'Eadady', 'Sanawy'].includes(stageKey)) {
+                                subjectCrossStats[t.subject][stageKey]++;
+                            }
+                            subjectCrossStats[t.subject].total++;
+                        }
+                    }
+
+                    // 3. تحليل المدارس
+                    const sCode = String(t.schoolCode || '').trim();
+                    if (sCode) {
+                        if (!schoolsSummary[sCode]) {
+                            schoolsSummary[sCode] = { name: finalSchoolName, total: 0, subjects: {} };
+                        }
+                        schoolsSummary[sCode].total++;
+                        if (t.subject) {
+                            schoolsSummary[sCode].subjects[t.subject] = (schoolsSummary[sCode].subjects[t.subject] || 0) + 1;
+                        }
+                    }
                 });
             }
 
-            // Prep Charts Data
-            const top5Schools = Object.entries(topSchools).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            const topGovs = {};
+            state.adminData.forEach(t => { if (t.gov) topGovs[t.gov] = (topGovs[t.gov] || 0) + 1; });
 
             app.innerHTML = `
-                <div class="bg-gray-900 text-white p-6 rounded-b-xl mb-8 flex flex-col md:flex-row justify-between items-center shadow-2xl gap-4">
-                    <div><h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="layout-dashboard" class="text-red-500"></i> لوحة التحكم المركزية</h1><p class="text-gray-400 text-sm mt-1">إحصائيات شاملة لإدارة العمرانية</p></div>
-                    <div class="flex gap-3">
-                         <button onclick="loadAllData()" class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg flex gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> تحديث</button>
-                         <button onclick="exportFullData()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-bold flex gap-2"><i data-lucide="download" class="w-4 h-4"></i> اكسيل</button>
-                         <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-bold">خروج</button>
+                <div class="space-y-8 animate-fade-in no-print bg-slate-50/50 p-4 rounded-3xl min-h-screen" dir="rtl">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 text-white p-8 rounded-[40px] shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6 border border-white/10 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(59,130,246,0.15),transparent)] pointer-events-none"></div>
+                        <div class="relative z-10 flex items-center gap-5 text-right">
+                            <div class="bg-red-500/20 p-4 rounded-3xl backdrop-blur-xl border border-red-500/30 shadow-lg shadow-red-500/20">
+                                <i data-lucide="layout-dashboard" class="text-red-400 w-10 h-10"></i>
+                            </div>
+                            <div>
+                                <h1 class="text-3xl font-black tracking-tight leading-none mb-2">لوحة التحكم المركزية</h1>
+                                <p class="text-blue-200/60 text-sm flex items-center gap-2 font-medium">
+                                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+                                    إدارة العمرانية التعليمية - مراقبة البيانات والمدارس
+                                </p>
+                            </div>
+                        </div>
+                        <div class="relative z-10 flex flex-wrap justify-center gap-3">
+                             <button onclick="loadAllData()" class="bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 px-6 py-3.5 rounded-2xl flex items-center gap-2 transition-all active:scale-95 text-xs font-bold group">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 text-blue-400 group-hover:rotate-180 transition-transform duration-500"></i> تحديث البيانات
+                             </button>
+                             <button onclick="exportFullData()" class="bg-green-500 hover:bg-green-600 px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-green-500/20 transition-all active:scale-95 text-xs">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> تصدير إكسيل
+                             </button>
+                             <button onclick="logout()" class="bg-white/5 hover:bg-red-500/20 border border-white/5 hover:border-red-500/30 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-xs flex items-center gap-2">
+                                <i data-lucide="log-out" class="w-4 h-4 text-red-400"></i> خروج آمن
+                             </button>
+                        </div>
                     </div>
-                </div>
 
-                <!-- KPI Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-xl shadow border-b-4 border-blue-500 group hover:shadow-lg transition-all">
-                        <div class="flex justify-between items-start">
-                             <div><div class="text-gray-500 text-sm font-bold mb-1">إجمالي المعلمين</div><div class="text-4xl font-bold text-gray-800">${total}</div></div>
-                             <div class="bg-blue-50 p-2 rounded text-blue-600"><i data-lucide="users" class="w-6 h-6"></i></div>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow border-b-4 border-yellow-500 group hover:shadow-lg transition-all">
-                        <div class="flex justify-between items-start">
-                             <div><div class="text-gray-500 text-sm font-bold mb-1">عدد المدارس</div><div class="text-4xl font-bold text-gray-800">${schoolsCount}</div></div>
-                             <div class="bg-yellow-50 p-2 rounded text-yellow-600"><i data-lucide="building" class="w-6 h-6"></i></div>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow border-b-4 border-green-500 group hover:shadow-lg transition-all">
-                         <div class="flex justify-between items-start">
-                             <div><div class="text-gray-500 text-sm font-bold mb-1">نسبة التسجيل</div><div class="text-4xl font-bold text-gray-800">%${Math.round((total / (schoolsCount * 50)) * 100) || 0}</div></div> <!-- Mock Target 50/school -->
-                             <div class="bg-green-50 p-2 rounded text-green-600"><i data-lucide="activity" class="w-6 h-6"></i></div>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow border-b-4 border-purple-500 group hover:shadow-lg transition-all">
-                         <div class="flex justify-between items-start">
-                             <div><div class="text-gray-500 text-sm font-bold mb-1">الذكور / الإناث</div><div class="text-xl font-bold text-gray-800">${byGender['ذكر']} <span class="text-gray-400 text-sm">/</span> ${byGender['أنثى']}</div></div>
-                             <div class="bg-purple-50 p-2 rounded text-purple-600"><i data-lucide="pie-chart" class="w-6 h-6"></i></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Charts Row -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                     <div class="bg-white p-6 rounded-xl shadow">
-                         <h3 class="font-bold mb-6 text-gray-700 flex items-center gap-2"><i data-lucide="bar-chart-2" class="w-5 h-5 text-blue-500"></i> التوزيع حسب المراحل</h3>
-                         <div class="h-64"><canvas id="stageChart"></canvas></div>
-                     </div>
-                     <div class="bg-white p-6 rounded-xl shadow">
-                         <h3 class="font-bold mb-6 text-gray-700 flex items-center gap-2"><i data-lucide="award" class="w-5 h-5 text-yellow-500"></i> أكثر المدارس نشاطاً</h3>
-                         <div class="h-64"><canvas id="schoolChart"></canvas></div>
-                     </div>
-                </div>
-
-                <!-- Schools Mgmt (Existing) -->
-
-                <!-- Tabs for Schools Management -->
-                <div class="bg-white rounded-xl shadow p-6 mb-8">
-                   <h3 class="font-bold mb-4 text-xl border-b pb-2">إدارة المدارس (تلقائي)</h3>
-                   <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div>
-                            <h4 class="font-bold text-gray-600 mb-2 flex justify-between items-center">
-                                <span id="schoolFormTitle">إضافة مدرسة جديدة</span>
-                                ${state.editingSchool ? `<button onclick="cancelSchoolEdit()" class="text-xs text-red-500 bg-red-50 px-2 py-1 rounded">إلغاء</button>` : ''}
-                            </h4>
-                            <form onsubmit="handleAddSchool(event)" id="schoolForm" class="space-y-3 p-4 bg-gray-50 rounded-lg border text-xs">
-                                <div class="grid grid-cols-2 gap-2">
-                                    <input type="text" name="code" id="schoolCodeInput" placeholder="كود المدرسة (Required)" required class="w-full p-2 border rounded" ${state.editingSchool ? 'readonly class="bg-gray-200"' : ''}>
-                                    <input type="text" name="password" placeholder="كلمة المرور (أرقام)" required class="w-full p-2 border rounded" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                                </div>
-                                 <input type="text" name="name" placeholder="اسم المدرسة الرسمي" oninput="this.value = this.value.replace(/[^\\u0600-\\u06FF\\s]/g, '')" required class="w-full p-2 border rounded">
-                                <div class="grid grid-cols-2 gap-2">
-                                     <select name="stage" class="w-full p-2 border rounded"><option value="Abdaey">الابتدائية</option><option value="Eadady">الإعدادية</option><option value="Sanawy">الثانوية</option></select>
-                                     <select name="type" class="w-full p-2 border rounded">
-                                         <option value="official">رسمي</option>
-                                         <option value="official_lang">رسمي لغات</option>
-                                         <option value="private_arabic">خاص عربي</option>
-                                         <option value="private_lang">خاص لغات</option>
-                                         <option value="international">دولي</option>
-                                         <option value="cultural">ثقافي</option>
-                                     </select>
-                                </div>
-                                
-                                 <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 rounded shadow hover:bg-blue-700 mt-2">${state.editingSchool ? 'حفظ التعديلات' : 'إضافة المدرسة'}</button>
-                            </form>
-                        </div>
-                        <div class="col-span-2">
-                            <h4 class="font-bold text-gray-600 mb-2">قائمة المدارس المسجلة</h4>
-                            <div class="overflow-auto max-h-64 border rounded">
-                                 <table class="w-full text-sm text-right">
-                                    <thead class="bg-gray-100 font-bold border-b">
+                    <!-- Professional Stats Table (Top Section) -->
+                    <div class="grid grid-cols-1 gap-8">
+                        
+                        <!-- 1. Central Subjects Report (New Request) -->
+                        <div class="bg-white rounded-[30px] shadow-sm border border-slate-100 overflow-hidden">
+                            <div class="p-6 bg-indigo-900 text-white flex justify-between items-center">
+                                <h3 class="font-black text-lg flex items-center gap-2">
+                                    <i data-lucide="layout-grid" class="w-5 h-5 text-indigo-300"></i>
+                                    إحصائيات التخصصات (توزيع مركزي عبر المراحل)
+                                </h3>
+                                <span class="text-[10px] bg-white/10 px-3 py-1 rounded-full border border-white/20">تقرير شامل</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-right border-collapse">
+                                    <thead class="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b">
                                         <tr>
-                                            <th class="p-2">المدرسة</th>
-                                            <th class="p-2 text-center">المرحلة / النوع</th>
-                                            <th class="p-2 text-center">بيانات التواصل (المدير / شؤون ع / حاسب)</th>
-                                            <th class="p-2 text-center text-xs">باسورد</th>
-                                            <th class="p-2 text-center">تحكم</th>
+                                            <th class="p-4 border-l">اسم التخصص</th>
+                                            <th class="p-4 border-l text-center bg-blue-50/50">الابتدائية</th>
+                                            <th class="p-4 border-l text-center bg-teal-50/50">الإعدادية</th>
+                                            <th class="p-4 border-l text-center bg-amber-50/50">الثانوية</th>
+                                            <th class="p-4 text-center bg-slate-100/50">إجمالي الإدارة</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        ${state.schools.map(s => `
-                                            <tr class="border-b hover:bg-gray-50 transition-colors">
-                                                <td class="p-2">
-                                                    <div class="font-bold text-slate-700">${s.name}</div>
-                                                    <div class="text-[10px] font-mono text-gray-400">Code: ${s.code}</div>
-                                                </td>
-                                                <td class="p-2 text-center">
-                                                    <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] border border-blue-100">${s.stageName || s.stage}</span><br>
-                                                    <span class="text-gray-500 text-[10px] mt-1 inline-block">${s.typeName || s.type}</span>
-                                                </td>
-                                                <td class="p-2">
-                                                    <div class="grid grid-cols-3 gap-1 text-[10px]">
-                                                        <div class="bg-gray-100 p-1 rounded-md text-center ${s.managerName ? 'border-r-2 border-yellow-500' : 'opacity-30'}">
-                                                            <div class="font-bold truncate" title="${s.managerName || 'غير مسجل'}">${s.managerName || '-'}</div>
-                                                            <div class="text-gray-400 truncate">${s.managerPhone || ''}</div>
-                                                        </div>
-                                                        <div class="bg-gray-100 p-1 rounded-md text-center ${s.hrName ? 'border-r-2 border-green-500' : 'opacity-30'}">
-                                                            <div class="font-bold truncate" title="${s.hrName || 'غير مسجل'}">${s.hrName || '-'}</div>
-                                                            <div class="text-gray-400 truncate">${s.hrPhone || ''}</div>
-                                                        </div>
-                                                        <div class="bg-gray-100 p-1 rounded-md text-center ${s.itName ? 'border-r-2 border-blue-500' : 'opacity-30'}">
-                                                            <div class="font-bold truncate" title="${s.itName || 'غير مسجل'}">${s.itName || '-'}</div>
-                                                            <div class="text-gray-400 truncate">${s.itPhone || ''}</div>
-                                                        </div>
+                                    <tbody class="divide-y divide-slate-100 font-bold">
+                                        ${Object.entries(subjectCrossStats).sort((a, b) => b[1].total - a[1].total).map(([name, stats]) => `
+                                            <tr class="hover:bg-slate-50 transition-colors group">
+                                                <td class="p-4 border-l font-black text-slate-800 text-sm flex items-center justify-between">
+                                                    <span>${name}</span>
+                                                    <div class="flex gap-1">
+                                                        <button onclick="exportSubjectReport('${name}')" class="opacity-0 group-hover:opacity-100 bg-green-50 text-green-600 border border-green-200 px-2 py-0.5 rounded-lg text-[9px] hover:bg-green-600 hover:text-white transition-all">تصدير إكسيل</button>
+                                                        <button onclick="printSubjectReport('${name}')" class="opacity-0 group-hover:opacity-100 bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-lg text-[9px] hover:bg-blue-600 hover:text-white transition-all">طباعة الكشف</button>
                                                     </div>
                                                 </td>
-                                                <td class="p-2 text-center font-mono text-xs text-gray-300 select-all hover:text-slate-600 transition-colors">${s.password}</td>
-                                                <td class="p-2">
-                                                    <div class="flex justify-center gap-2">
-                                                        <button onclick="editSchool('${s.code}')" class="text-blue-500 hover:bg-blue-100 p-1 rounded transition-colors" title="تعديل"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                                                        <button onclick="deleteSchool('${s.code}')" class="text-red-500 hover:bg-red-100 p-1 rounded transition-colors" title="حذف"><i data-lucide="trash" class="w-4 h-4"></i></button>
+                                                <td class="p-4 border-l text-center text-blue-600 font-mono">${stats.Abdaey || '-'}</td>
+                                                <td class="p-4 border-l text-center text-teal-600 font-mono">${stats.Eadady || '-'}</td>
+                                                <td class="p-4 border-l text-center text-amber-600 font-mono">${stats.Sanawy || '-'}</td>
+                                                <td class="p-4 text-center bg-slate-50/30">
+                                                    <span class="bg-slate-800 text-white px-3 py-0.5 rounded-full font-mono text-xs">${stats.total}</span>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 2. Stage Summary Report -->
+                        <div class="bg-white rounded-[30px] shadow-sm border border-slate-100 overflow-hidden">
+                            <div class="p-6 bg-slate-900 text-white flex justify-between items-center">
+                                <h3 class="font-black text-lg flex items-center gap-2">
+                                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-yellow-500"></i>
+                                    تقرير عجز وزيادة المواد (حسب المرحلة)
+                                </h3>
+                                <span class="text-[10px] bg-white/10 px-3 py-1 rounded-full border border-white/20">إحصائيات فورية</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-right border-collapse">
+                                    <thead class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b">
+                                        <tr>
+                                            <th class="p-4 border-l">المرحلة</th>
+                                            <th class="p-4 border-l text-center">إجمالي المعلمين</th>
+                                            <th class="p-4">توزيع التخصصات (تعداد رقمي)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 italic">
+                                        ${Object.entries(byStageStats).filter(([_, data]) => data.total > 0).map(([key, data]) => `
+                                            <tr class="hover:bg-blue-50/30 transition-colors">
+                                                <td class="p-4 border-l font-black text-slate-800">${STAGE_LABELS[key]}</td>
+                                                <td class="p-4 border-l text-center">
+                                                    <span class="bg-blue-600 text-white px-3 py-1 rounded-lg font-mono font-bold shadow-sm">${data.total}</span>
+                                                </td>
+                                                <td class="p-4">
+                                                    <div class="flex flex-wrap gap-2">
+                                                        ${Object.entries(data.subjects).sort((a, b) => b[1] - a[1]).map(([sub, count]) => `
+                                                            <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl">
+                                                                <span class="text-[10px] font-bold text-slate-700">${sub}:</span>
+                                                                <span class="text-[11px] font-black text-blue-600">${count}</span>
+                                                            </div>
+                                                        `).join('')}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -992,41 +989,268 @@
                                 </table>
                             </div>
                         </div>
-                   </div>
+
+                        <!-- 2. School Detailed Report -->
+                        <div class="bg-white rounded-[30px] shadow-sm border border-slate-100 overflow-hidden">
+                            <div class="p-6 bg-blue-900 text-white flex justify-between items-center">
+                                <h3 class="font-black text-lg flex items-center gap-2">
+                                    <i data-lucide="layers" class="w-5 h-5 text-blue-400"></i>
+                                    التقرير التفصيلي للمدارس والتخصصات
+                                </h3>
+                                <div class="flex gap-2">
+                                    <button onclick="exportFullData()" class="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-2 transition-all">
+                                        <i data-lucide="download" class="w-3.5 h-3.5"></i> تصدير التقرير الكامل
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto max-h-[500px] overflow-y-auto custom-scroll">
+                                <table class="w-full text-right border-collapse sticky-header">
+                                    <thead class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b sticky top-0 z-10">
+                                        <tr>
+                                            <th class="p-4 border-l">اسم المدرسة</th>
+                                            <th class="p-4 border-l text-center">الإجمالي</th>
+                                            <th class="p-4">بيان التخصصات المسجلة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        ${Object.entries(schoolsSummary).sort((a, b) => b[1].total - a[1].total).map(([code, data]) => `
+                                            <tr class="hover:bg-slate-50/80 transition-all group">
+                                                <td class="p-4 border-l">
+                                                    <div class="font-black text-slate-800 text-xs">${data.name}</div>
+                                                    <div class="text-[9px] text-slate-400 font-mono">#${code}</div>
+                                                </td>
+                                                <td class="p-4 border-l text-center">
+                                                    <div class="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto group-hover:bg-blue-600 group-hover:text-white transition-all font-black font-mono shadow-inner border border-slate-200">
+                                                        ${data.total}
+                                                    </div>
+                                                </td>
+                                                <td class="p-4">
+                                                    <div class="flex flex-wrap gap-2">
+                                                        ${Object.entries(data.subjects).map(([sub, count]) => `
+                                                            <div class="bg-white border border-slate-200 px-2 py-1 rounded-xl text-[10px] font-bold flex gap-2">
+                                                                <span class="text-slate-500">${sub}</span>
+                                                                <span class="text-blue-500 font-black border-r pr-2 border-slate-200">${count}</span>
+                                                            </div>
+                                                        `).join('')}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 space-y-8">
+                            <!-- School Management Table (Corrected Logic) -->
+                            <div class="bg-white rounded-[40px] shadow-sm border border-slate-100 p-8 hover:shadow-xl transition-all duration-500">
+                                <div class="flex items-center justify-between mb-8">
+                                    <div class="flex items-center gap-4">
+                                        <div class="bg-teal-500/10 p-4 rounded-3xl border border-teal-500/20 text-teal-600">
+                                            <i data-lucide="building-2" class="w-6 h-6"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-2xl font-black text-slate-800">إدارة حسابات المدارس</h3>
+                                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">تعديل الصلاحيات والمتابعة الفنية</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="overflow-hidden border border-slate-100 rounded-[30px] shadow-sm overflow-x-auto">
+                                    <table class="w-full text-right text-xs">
+                                        <thead class="bg-slate-50 text-slate-400 font-black uppercase tracking-widest border-b text-[10px]">
+                                            <tr>
+                                                <th class="p-5">بيانات المدرسة</th>
+                                                <th class="p-5 text-center">المرحلة</th>
+                                                <th class="p-5 text-center">أدوات التحكم</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100 italic">
+                                            ${state.schools.filter(s => s.code !== 'admin').map(s => {
+                const schoolCount = schoolsSummary[s.name] ? schoolsSummary[s.name].total : 0;
+                return `
+                                                    <tr class="hover:bg-slate-50/50 transition-colors group">
+                                                        <td class="p-5">
+                                                            <div class="font-black text-slate-700 text-sm mb-1">${s.name}</div>
+                                                            <div class="flex items-center gap-3">
+                                                                <span class="text-[9px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-400 border border-slate-200">ID: ${s.code}</span>
+                                                                <span class="text-[9px] font-mono bg-blue-50 px-1.5 py-0.5 rounded text-blue-400 border border-blue-100">PASS: ${s.password}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td class="p-5 text-center">
+                                                            <span class="px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-[9px] font-black text-slate-500">${s.stageName || s.stage}</span>
+                                                        </td>
+                                                        <td class="p-5">
+                                                            <div class="flex justify-center gap-2">
+                                                                <button onclick="printSchoolReport('${s.code}')" class="group/btn w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-green-600 hover:border-green-300 hover:bg-green-50 transition-all shadow-sm" title="طباعة كشف مجمع"><i data-lucide="printer" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
+                                                                <button onclick="filterBySchool('${s.code}')" class="group/btn w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm" title="عرض المعلمين"><i data-lucide="users" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
+                                                                <button onclick="editSchool('${s.code}')" class="group/btn w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50 transition-all shadow-sm" title="تعديل"><i data-lucide="edit-3" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
+                                                                <button onclick="deleteSchool('${s.code}')" class="group/btn w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all shadow-sm" title="حذف"><i data-lucide="trash-2" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                `;
+            }).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Advanced Search/List Table -->
+                            <div class="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden group hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-500">
+                                <div class="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-6 bg-slate-50/30">
+                                    <h3 class="font-black text-slate-800 text-lg flex items-center gap-3">
+                                        <div class="w-2 h-8 bg-blue-500 rounded-full"></div>
+                                        قائمة المعلمين (تصفية ذكية)
+                                    </h3>
+                                    <div class="relative w-full md:w-72 group/search">
+                                        <i data-lucide="search" class="absolute right-4 top-3.5 w-4 h-4 text-slate-400 group-focus-within/search:text-blue-500 transition-colors"></i>
+                                        <input type="text" placeholder="بحث بالاسم أو الرقم القومي..." 
+                                               oninput="filterAdminTable(this.value)"
+                                               class="w-full pr-12 pl-4 py-3 bg-white border border-slate-200 rounded-[20px] text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all shadow-sm font-bold">
+                                    </div>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-right">
+                                        <thead class="bg-slate-50/50 text-slate-400 text-[11px] uppercase font-black tracking-widest border-b border-slate-100">
+                                            <tr>
+                                                <th class="p-6">بيانات المعلم</th>
+                                                <th class="p-6">المدرسة / المرحلة</th>
+                                                <th class="p-6">التخصص</th>
+                                                <th class="p-6 text-center">الإجراء</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="adminTableBody" class="divide-y divide-slate-50">
+                                            <!-- سيتم الحقن بواسطة JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="p-6 bg-slate-50/30 text-center border-t border-slate-50">
+                                    <button onclick="renderAdminTableFull()" class="text-xs font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest">عرض كافة السجلات القابلة للبحث (${total})</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sidebar Actions & Form -->
+                        <div class="space-y-8">
+                            <!-- Add/Edit School Form -->
+                            <div class="bg-white rounded-[40px] shadow-sm border border-slate-100 p-8">
+                                <h4 class="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
+                                    <i data-lucide="plus-square" class="w-5 h-5 text-teal-500"></i>
+                                    <span id="schoolFormTitle">${state.editingSchool ? 'توصيف مدرسة' : 'تسجيل مدرسة جديدة'}</span>
+                                </h4>
+                                <form onsubmit="handleAddSchool(event)" id="schoolForm" class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="space-y-1.5 col-span-2">
+                                            <label class="text-[10px] font-black text-slate-400 mr-2">كود المدرسة الرئيسي</label>
+                                            <input type="text" name="code" id="schoolCodeInput" placeholder="كود فريد" required class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none" ${state.editingSchool ? 'readonly' : ''}>
+                                        </div>
+                                        <div class="space-y-1.5 col-span-2">
+                                            <label class="text-[10px] font-black text-slate-400 mr-2">الاسم الرسمي للمؤسسة</label>
+                                            <input type="text" name="name" placeholder="عربي فقط" required oninput="this.value = this.value.replace(/[^\u0600-\u06FF\s]/g, '')" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                                        </div>
+                                        <div class="space-y-1.5">
+                                            <label class="text-[10px] font-black text-slate-400 mr-2">المسار التعليمي</label>
+                                            <select name="stage" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold appearance-none cursor-pointer">
+                                                <option value="Abdaey">ابتدائي</option>
+                                                <option value="Eadady">إعدادي</option>
+                                                <option value="Sanawy">ثانوي</option>
+                                            </select>
+                                        </div>
+                                        <div class="space-y-1.5">
+                                            <label class="text-[10px] font-black text-slate-400 mr-2">كلمة المرور</label>
+                                            <input type="text" name="password" placeholder="أرقام" required oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold">
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                                        <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                        ${state.editingSchool ? 'تحديث البيانات' : 'حفظ المدرسة'}
+                                    </button>
+                                    ${state.editingSchool ? `<button type="button" onclick="cancelSchoolEdit()" class="w-full text-slate-400 text-[10px] font-bold">تراجع عن التغييرات</button>` : ''}
+                                </form>
+                            </div>
+
+                            <!-- System Stats Recap -->
+                            <div class="bg-indigo-900 p-8 rounded-[40px] shadow-2xl text-white relative overflow-hidden group">
+                                <div class="absolute inset-0 bg-grid-white/[0.05] pointer-events-none"></div>
+                                <h4 class="font-black text-md mb-6 relative z-10 flex items-center gap-2">
+                                    <div class="w-1.5 h-6 bg-indigo-400 rounded-full"></div>
+                                    نمو قاعدة البيانات
+                                </h4>
+                                <div class="space-y-6 relative z-10">
+                                    <div>
+                                        <div class="flex justify-between text-[10px] font-bold mb-2"><span>إجمالي المعلمين</span> <span>${total}</span></div>
+                                        <div class="h-1.5 bg-white/10 rounded-full overflow-hidden"><div class="h-full bg-indigo-400 rounded-full" style="width: 100%"></div></div>
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-[10px] font-bold mb-2"><span>المحافظات المشتركة</span> <span>${Object.keys(topGovs).length}</span></div>
+                                        <div class="h-1.5 bg-white/10 rounded-full overflow-hidden"><div class="h-full bg-blue-400 rounded-full" style="width: ${(Object.keys(topGovs).length / 27) * 100}%"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
             lucide.createIcons();
+            // رندر السجلات الأولى
+            if (typeof renderAdminTableRows === 'function') {
+                renderAdminTableRows(state.adminData.slice(0, 8));
+            }
+        }
 
-            // Init Charts
-            new Chart(document.getElementById('stageChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['الابتدائية', 'الإعدادية', 'الثانوية'],
-                    datasets: [{
-                        data: [byStage['Abdaey'] || 0, byStage['Eadady'] || 0, byStage['Sanawy'] || 0],
-                        backgroundColor: ['#3b82f6', '#eab308', '#ec4899']
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+        function renderAdminTableRows(data) {
+            const body = document.getElementById('adminTableBody');
+            if (!body) return;
+            body.innerHTML = data.map(t => `
+                <tr class="hover:bg-slate-50/80 transition-all group/row">
+                    <td class="p-6">
+                        <div class="flex items-center gap-4 text-right">
+                            <div class="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 group-hover/row:bg-blue-500 group-hover/row:text-white group-hover/row:rotate-3 transition-all duration-300">
+                                ${t.name ? t.name[0] : '?'}
+                            </div>
+                            <div>
+                                <div class="font-black text-slate-800 text-sm mb-0.5">${t.name}</div>
+                                <div class="text-[10px] text-slate-400 font-mono tracking-tighter">${t.nid}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-6">
+                        <div class="font-bold text-slate-700 text-xs mb-1">${t.schoolName}</div>
+                        <div class="text-[10px] text-slate-400 font-medium">${t.schoolStage}</div>
+                    </td>
+                    <td class="p-6">
+                        <span class="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black border border-blue-100 group-hover/row:bg-blue-600 group-hover/row:text-white transition-colors">
+                            ${t.subject}
+                        </span>
+                    </td>
+                    <td class="p-6 text-center">
+                        <button onclick="viewTeacherFull('${t.nid}')" class="w-10 h-10 flex items-center justify-center mx-auto bg-slate-50 hover:bg-white rounded-xl border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-blue-500 shadow-sm">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
 
-            new Chart(document.getElementById('schoolChart'), {
-                type: 'bar',
-                data: {
-                    labels: top5Schools.map(x => x[0]),
-                    datasets: [{
-                        label: 'عدد المعلمين',
-                        data: top5Schools.map(x => x[1]),
-                        backgroundColor: '#10b981',
-                        borderRadius: 5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
+        function filterAdminTable(q) {
+            const query = q.toLowerCase();
+            const filtered = state.adminData.filter(t =>
+                (t.name && t.name.toLowerCase().includes(query)) ||
+                (t.nid && String(t.nid).includes(query)) ||
+                (t.schoolCode && String(t.schoolCode).includes(query)) ||
+                (t.schoolName && t.schoolName.toLowerCase().includes(query))
+            );
+            renderAdminTableRows(filtered);
+        }
+
+        function renderAdminTableFull() {
+            renderAdminTableRows(state.adminData);
+            showToast('تم عرض كافة السجلات', 'info');
         }
 
         // --- Logic Handlers ---
@@ -1038,6 +1262,15 @@
             '23': 'الفيوم', '24': 'المنيا', '25': 'أسيوط', '26': 'سوهاج', '27': 'قنا', '28': 'أسوان',
             '29': 'الأقصر', '31': 'البحر الأحمر', '32': 'الوادي الجديد', '33': 'مطروح', '34': 'شمال سيناء',
             '35': 'جنوب سيناء', '88': 'خارج الجمهورية'
+        };
+
+        const formatDateOnly = (d) => {
+            if (!d || d === '-') return '-';
+            const str = String(d).trim();
+            // التعامل مع ISO strings أو التواريخ التي تحتوي على مسافات/أوقات
+            if (str.includes('T')) return str.split('T')[0];
+            if (str.includes(' ')) return str.split(' ')[0];
+            return str;
         };
 
         function calculateAge(birthDate) {
@@ -1117,6 +1350,7 @@
             document.getElementById('govHidden').value = govName;
         }
 
+
         async function handleRegister(e) {
             e.preventDefault();
             const form = new FormData(e.target);
@@ -1124,31 +1358,43 @@
 
             // Validate NID
             const nidFeedback = document.getElementById('nidFeedback').textContent;
-            // If editing existing record (teacher mode or editing index set), ignore "already registered" warning
+            // Sync check: allow "already registered" if in update mode
             const isEditing = state.editingIndex || state.user.type === 'teacher';
 
             if (!isEditing && (nidFeedback.includes('مسجل بالفعل') || nidFeedback === '' || nidFeedback.includes('أدخل 14'))) {
                 return showToast('يرجى التأكد من الرقم الرقم القومي (غير صحيح أو مكرر)', 'error');
             }
 
-            if (data.phone && !/^01[0125][0-9]{8}$/.test(data.phone)) {
-                return showToast('رقم الهاتف غير صحيح (يجب أن يبدأ بـ 01 ويتكون من 11 رقم)', 'warning');
-            }
-
+            // Always ensure schoolCode is set for school users OR from tempFormData
             if (state.user.type === 'school') {
                 data.schoolCode = state.user.code;
                 data.schoolName = state.user.name;
                 data.schoolStage = state.user.stageName;
             } else if (state.user.type === 'teacher') {
-                // For teachers, schoolCode might come from the form (new registration)
-                // or from state.user (update session)
                 if (!data.schoolCode && state.user.schoolCode) {
                     data.schoolCode = state.user.schoolCode;
                     data.schoolName = state.user.schoolName;
                     data.schoolStage = state.user.schoolStage;
                 } else if (data.schoolCode) {
                     const school = state.schools.find(s => s.code === data.schoolCode);
-                    data.schoolStage = school ? school.stageName : '';
+                    data.schoolName = school ? school.name : (data.schoolName || '');
+                    data.schoolStage = school ? school.stageName : (data.schoolStage || '');
+                }
+            }
+
+            // Fallback: use tempFormData if available (for editing)
+            if (!data.schoolCode && state.tempFormData.schoolCode) {
+                data.schoolCode = state.tempFormData.schoolCode;
+                data.schoolName = state.tempFormData.schoolName;
+                data.schoolStage = state.tempFormData.schoolStage;
+            }
+
+            // Ensure schoolName and schoolStage are always set from schoolCode
+            if (data.schoolCode && (!data.schoolName || !data.schoolStage)) {
+                const school = state.schools.find(s => s.code === data.schoolCode);
+                if (school) {
+                    data.schoolName = school.name;
+                    data.schoolStage = school.stageName;
                 }
             }
 
@@ -1167,171 +1413,23 @@
                     await loadSchoolData();
                     document.getElementById('teacherForm').reset();
                 } else {
-                    // Critical for print: update state.user with the full registered data
                     state.user = { ...state.user, ...data };
                     render();
                 }
+            } else { showToast('خطأ: ' + (res.message || 'فشل الاتصال'), 'error'); }
+        }
+
+        async function deleteTeacher(nid) { if (!confirm('حذف نهائي؟')) return; const res = await sendData('delete', { nid: nid, schoolCode: state.user.code }); if (res.status === 'success') await loadSchoolData(); }
+        function editTeacher(nid) {
+            state.editingIndex = nid;
+            const teacher = state.teachers.find(t => t.nid == nid);
+            if (teacher) {
+                state.tempFormData = { ...teacher };
             }
-            else { showToast('خطأ: ' + (res.message || 'فشل الاتصال'), 'error'); }
+            render();
         }
-
-        function printSchoolTeacherList() {
-            const s = state.user;
-            const data = state.teachers;
-            if (!data || data.length === 0) return showToast('لا توجد بيانات معلمين لطباعتها', 'info');
-
-            const printWindow = window.open('', '_blank');
-            const html = `
-                <html lang="ar" dir="rtl">
-                <head>
-                    <title>كشف مجمع معلمين - ${s.name}</title>
-                    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
-                    <style>
-                        @page { size: A4 landscape; margin: 1cm; }
-                        body { font-family: 'Cairo', sans-serif; padding: 10px; color: #000; direction: rtl; }
-                        .header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-                        .title { text-align: center; font-size: 18px; font-weight: bold; flex-grow: 1; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-                        th, td { border: 1px solid #000; padding: 6px 4px; text-align: center; }
-                        th { background: #f2f2f2; font-weight: bold; }
-                        .footer { margin-top: 30px; display: flex; justify-content: space-between; }
-                        .sign { text-align: center; width: 30%; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div style="font-size: 10px;">محافظة الجيزة<br>مديرية التربية والتعليم<br>إدارة العمرانية التعليمية</div>
-                        <div style="text-align: center;"><img src="${LOGO_URL}" style="height: 60px; margin-bottom: 5px;"><div class="title">كشف مجمع ببيانات المعلمين المسجلين<br>${s.name} (${s.stageName})</div></div>
-                        <div style="font-size: 10px; text-align: left;">تاريخ الكشف: ${new Date().toLocaleDateString('ar-EG')}</div>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 30px;">م</th>
-                                <th>الاسم</th>
-                                <th>الرقم القومي</th>
-                                <th>المادة / التخصص</th>
-                                <th>الهاتف</th>
-                                <th>المؤهل</th>
-                                <th>نوع التعاقد</th>
-                                <th>ملاحظات</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.map((t, idx) => `
-                                <tr>
-                                    <td>${idx + 1}</td>
-                                    <td style="text-align: right;">${t.name}</td>
-                                    <td style="font-family: monospace;">${t.nid}</td>
-                                    <td>${t.subject}</td>
-                                    <td style="font-family: monospace;">${t.phone}</td>
-                                    <td>${t.qualification}</td>
-                                    <td>${t.contractType}</td>
-                                    <td></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    <div class="footer">
-                        <div class="sign">شؤون العاملين بالمدرسة<br><br>...........................</div>
-                        <div class="sign">ختم المدرسة<br><br><br></div>
-                        <div class="sign">يعتمد مدير المدرسة<br><br>...........................</div>
-                    </div>
-                    <script>
-                        window.onload = () => { window.print(); window.onafterprint = () => window.close(); };
-                    <\/script>` + `
-                </body>
-                </html>
-            `;
-            printWindow.document.write(html);
-            printWindow.document.close();
-        }
-
-        function printTeacherForm() {
-            const t = state.user;
-            const printWindow = window.open('', '_blank');
-            const html = `
-                <html lang="ar" dir="rtl">
-                <head>
-                    <title>استمارة بيانات المعلم - ${t.name}</title>
-                    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
-                    <style>
-                        @page { size: A4; margin: 1cm; }
-                        body { font-family: 'Cairo', sans-serif; padding: 20px; color: #333; line-height: 1.4; }
-                        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px; }
-                        .title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #000; border: 2px solid #000; display: inline-block; padding: 5px 30px; margin-right: auto; margin-left: auto; display: block; width: fit-content; }
-                        .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 10px 40px; }
-                        .item { border-bottom: 1px dotted #ccc; padding: 5px 0; display: flex; justify-content: space-between; }
-                        .label { font-weight: bold; color: #000; }
-                        .value { border-bottom: 1px solid #777; flex-grow: 1; margin-right: 10px; text-align: center; }
-                        .footer { margin-top: 40px; display: flex; justify-content: space-between; border-top: 1px solid #eee; pt-20 }
-                        .sign-box { text-align: center; width: 45%; border: 1px solid #eee; padding: 10px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div style="font-size: 12px;">محافظة الجيزة<br>مديرية التربية والتعليم<br>إدارة العمرانية التعليمية</div>
-                        <div style="text-align: center;"><img src="${LOGO_URL}" style="height: 70px; margin-bottom: 5px;"><div style="font-weight: bold; font-size: 20px;">استمارة تسجيل بيانات معلم</div><div style="font-size: 14px; font-weight: normal;">(قاعدة البيانات الموحدة)</div></div>
-                        <div style="text-align: left; font-size: 12px;">تاريخ الطباعة:<br>${new Date().toLocaleDateString('ar-EG')}</div>
-                    </div>
-                    
-                    <div class="title">البيانات الشخصية والوظيفية</div>
-                    
-                    <div class="grid">
-                        <div class="item"><span class="label">الاسم الكامل:</span> <span class="value">${t.name}</span></div>
-                        <div class="item"><span class="label">الرقم القومي:</span> <span class="value">${t.nid}</span></div>
-                        <div class="item"><span class="label">جهة العمل (المدرسة):</span> <span class="value">${t.schoolName}</span></div>
-                        <div class="item"><span class="label">المرحلة التعليمية:</span> <span class="value">${t.schoolStage || '---'}</span></div>
-                        <div class="item"><span class="label">كود المعلم:</span> <span class="value">${t.teacherCode || '---'}</span></div>
-                        <div class="item"><span class="label">التخصص / المادة:</span> <span class="value">${t.subject}</span></div>
-                        <div class="item"><span class="label">رقم الهاتف:</span> <span class="value">${t.phone}</span></div>
-                        <div class="item"><span class="label">المؤهل الدراسي:</span> <span class="value">${t.qualification}</span></div>
-                        <div class="item"><span class="label">الجامعة:</span> <span class="value">${t.university || '---'}</span></div>
-                        <div class="item"><span class="label">سنة العمل:</span> <span class="value">${t.startDate || '---'}</span></div>
-                        <div class="item"><span class="label">نوع التعاقد:</span> <span class="value">${t.contractType}</span></div>
-                        <div class="item"><span class="label">العنوان الحالي:</span> <span class="value">${t.address || '---'}</span></div>
-                    </div>
-                    
-                    <div class="footer">
-                        <div class="sign-box">إقرار المعلم<br><br>أقر أنا الموضح بياناتي أعلاه بصحة البيانات المسجلة<br><br>التوقيع: ...........................</div>
-                        <div class="sign-box">يعتمد مدرسة / ${t.schoolName}<br><br>ختم المدرسة<br><br>مدير المدرسة: ...........................</div>
-                    </div>
-                    
-                    <script>
-                        window.onload = () => {
-                            window.print();
-                            window.onafterprint = () => window.close();
-                        };
-                    <\/script>` + `
-                </body>
-                </html>
-            `;
-            printWindow.document.write(html);
-            printWindow.document.close();
-        }
-
-        async function deleteTeacher(nid) {
-            if (!confirm('حذف نهائي؟')) return; const res = await sendData('delete', {
-                nid: nid,
-                schoolCode: state.user.code
-            }); if (res.status === 'success') await loadSchoolData();
-        }
-        function editTeacher(nid) { state.editingIndex = nid; render(); }
-        function cancelEdit() { state.editingIndex = null; render(); }
-        function logout() { state.user = null; state.currentView = 'login'; state.regFormStage = ''; render(); }
-        function clearConfig() { localStorage.removeItem('TEACHER_APP_API_URL'); location.reload(); }
-        function render() {
-            app.innerHTML = '';
-            if (state.isLoading) { renderLoading(); return; }
-            switch (state.currentView) {
-                case 'setup': renderSetup(); break;
-                case 'login': renderLogin(); break;
-                case 'dashboard': renderDashboard(); break;
-                case 'teacher_dashboard': renderTeacherDashboard(); break;
-                case 'admin': renderAdminDashboard(); break;
-            }
-            lucide.createIcons();
-        }
+        function cancelEdit() { state.editingIndex = null; state.tempFormData = {}; render(); }
+        // ... (removed setState, toggleElement, showToast, etc. as they are moved up)
 
         // School Mgmt
         async function handleAddSchool(e) {
@@ -1371,21 +1469,113 @@
             if (res.status === 'success') await loadAllData();
         }
 
+        function populateTeacherForm() {
+            let t;
+            if (state.user.type === 'teacher') {
+                t = state.user;
+            } else {
+                t = state.teachers.find(x => x.nid == state.editingIndex);
+            }
+            if (t) {
+                const f = document.getElementById('teacherForm');
+                for (let k in t) {
+                    if (f.elements[k]) {
+                        let val = t[k];
+                        // Format date properly for HTML5 date input (YYYY-MM-DD)
+                        if (f.elements[k].type === 'date' && val) {
+                            try {
+                                const d = new Date(val);
+                                if (!isNaN(d.getTime())) {
+                                    val = d.toISOString().split('T')[0];
+                                }
+                            } catch (e) { console.error("Date formatting error", e); }
+                        }
+                        f.elements[k].value = val;
+                    }
+                }
+            }
+        }
+        function filterBySchool(code) {
+            const searchInput = document.querySelector('input[placeholder*="بحث..."]');
+            if (searchInput) {
+                searchInput.value = code;
+                filterAdminTable(code);
+                // Scroll to top of table
+                document.getElementById('adminTableBody').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        async function deleteSchool(code) {
+            if (!confirm('هل أنت متأكد من حذف هذه المدرسة نهائياً؟ سيؤدي ذلك لمنع دخولهم للنظام.')) return;
+            const res = await sendData('deleteSchool', { code: String(code) });
+            if (res.status === 'success') {
+                showToast('تم حذف المدرسة بنجاح', 'success');
+                loadAllData();
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
+
+        function filterBySchool(code) {
+            const teachers = state.adminData.filter(t => String(t.schoolCode).trim() === String(code).trim());
+            renderAdminTableRows(teachers);
+            showToast(`تم عرض ${teachers.length} معلم لمدرسة مختارة`, 'info');
+        }
+
+        function printSchoolReport(code) {
+            const school = state.schools.find(s => String(s.code).trim() === String(code).trim());
+            if (!school) return showToast('تعذر العثور على بيانات المدرسة', 'error');
+            const teachers = state.adminData.filter(t => String(t.schoolCode).trim() === String(code).trim());
+            if (teachers.length === 0) return showToast('لا يوجد معلمون مسجلون لهذه المدرسة حالياً', 'info');
+
+            // Mock a school user object for print function
+            const mockSchoolUser = { ...school, name: school.name, stageName: school.stageName };
+            const oldUser = state.user;
+            state.user = mockSchoolUser;
+            const oldTeachers = state.teachers;
+            state.teachers = teachers;
+
+            printSchoolTeacherList();
+
+            // Restore
+            state.user = oldUser;
+            state.teachers = oldTeachers;
+        }
+
         function editSchool(code) {
             const s = state.schools.find(x => x.code === code);
             if (!s) return;
             state.editingSchool = true;
-            render(); // Re-render to show edit state
+            render();
             // Fill form after render
             setTimeout(() => {
                 const f = document.getElementById('schoolForm');
-                for (let k in s) {
-                    if (f.elements[k]) f.elements[k].value = s[k];
+                if (!f) return;
+                // تأكد من ملء كافة الحقول في وضع التعديل
+                if (f.elements['code']) f.elements['code'].value = s.code;
+                if (f.elements['name']) f.elements['name'].value = s.name;
+                if (f.elements['stage']) f.elements['stage'].value = s.stage;
+                if (f.elements['password']) f.elements['password'].value = s.password;
+
+                const codeInput = document.getElementById('schoolCodeInput');
+                if (codeInput) {
+                    codeInput.readOnly = true;
+                    codeInput.classList.add('bg-slate-100', 'opacity-80');
                 }
-                document.getElementById('schoolFormTitle').textContent = `تعديل مدرسة: ${s.name}`;
-                document.getElementById('schoolCodeInput').readOnly = true;
-                document.getElementById('schoolCodeInput').classList.add('bg-gray-200');
-            }, 50);
+                const titleNode = document.getElementById('schoolFormTitle');
+                if (titleNode) titleNode.innerText = 'تعديل بيانات المدرسة: ' + s.name;
+            }, 100);
+        }
+
+        function sendNoteToSchool(code, name) {
+            const msg = prompt(`أدخل الملاحظة المراد إرسالها لمدرسة ${name}:`, 'يرجى استكمال البيانات الأساسية الناقصة للمعلمين المسجلين طرفكم لضمان دقة التقارير.');
+            if (msg) {
+                const fullMsg = `إشعار من الإدارة التعليمية (لوحة التحكم المركزية)\nإلى مدرسة: ${name}\nالموضوع: ${msg}`;
+                // فتح الواتساب كحل عملي وسريع للمراسلة
+                const waUrl = `https://wa.me/?text=${encodeURIComponent(fullMsg)}`;
+                window.open(waUrl, '_blank');
+                showToast('تم فتح نافذة المراسلة', 'success');
+            }
         }
 
         function cancelSchoolEdit() {
@@ -1393,62 +1583,389 @@
             render();
         }
 
-        function exportFullData() {
-            const data = state.adminData;
-            if (!data.length) return showToast('لا توجد بيانات للتحميل', 'warning');
-            const headers = Object.keys(data[0]);
-            const csv = [headers.join(','), ...data.map(r => headers.map(h => `"${r[h]}"`).join(','))].join('\n');
-            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = 'All_Teachers.csv'; a.click();
+        function exportToExcel() {
+            const fileName = `بيانات_معلمين_${state.user.name}_${new Date().toLocaleDateString('ar-EG').replace(/\//g, '-')}.xlsx`;
+            exportTeachersToExcel(state.teachers, fileName);
         }
 
-        // --- Toast Notification System ---
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
+        function exportFullData() {
+            const fileName = `بيانات_المعلمين_العمرانية_${new Date().toLocaleDateString('ar-EG').replace(/\//g, '-')}.xlsx`;
+            exportTeachersToExcel(state.adminData, fileName);
+        }
 
-            const colors = {
-                success: 'bg-green-100 border-green-500 text-green-700',
-                error: 'bg-red-100 border-red-500 text-red-700',
-                info: 'bg-blue-100 border-blue-500 text-blue-700',
-                warning: 'bg-yellow-100 border-yellow-500 text-yellow-700'
-            };
-            const icons = {
-                success: 'check-circle',
-                error: 'alert-circle',
-                info: 'info',
-                warning: 'alert-triangle'
-            };
 
-            toast.className = `${colors[type]} border-l-4 p-4 rounded shadow-lg flex items-center gap-3 min-w-[300px] max-w-md
-toast-enter`;
-            toast.innerHTML = `
-<i data-lucide="${icons[type]}" class="w-6 h-6"></i>
-<div>
-    <p class="font-bold text-sm">${type === 'success' ? 'نجاح' : (type === 'error' ? 'خطأ' : 'تنبيه')}</p>
-    <p class="text-xs">${message}</p>
-</div>
-`;
 
-            container.appendChild(toast);
-            lucide.createIcons();
 
-            // Animate In
-            requestAnimationFrame(() => {
-                toast.classList.remove('toast-enter');
-                toast.classList.add('toast-enter-active');
+        function printSchoolTeacherList() {
+            const s = state.user;
+            const data = state.teachers;
+            if (!data || data.length === 0) return showToast('لا توجد بيانات معلمين لطباعتها', 'info');
+
+            const printWindow = window.open('', '_blank');
+            const html = `
+                <html lang="ar" dir="rtl">
+                <head>
+                    <title>كشف مجمع معلمين - ${s.name}</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+                    <style>
+                        @page { size: A4 landscape; margin: 1cm; }
+                        body { font-family: 'Cairo', sans-serif; padding: 10px; color: #000; direction: rtl; }
+                        .header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                        .title { text-align: center; font-size: 18px; font-weight: bold; flex-grow: 1; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px; }
+                        th, td { border: 1px solid #000; padding: 4px; text-align: center; }
+                        th { background: #f2f2f2; font-weight: bold; }
+                        .qual-cell { max-width: 150px; white-space: normal; word-wrap: break-word; line-height: 1.2; font-size: 9px; }
+                        .footer { margin-top: 30px; display: flex; justify-content: space-between; }
+                        .sign { text-align: center; width: 30%; font-size: 12px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div style="font-size: 10px;">محافظة الجيزة<br>مديرية التربية والتعليم<br>إدارة العمرانية التعليمية</div>
+                        <div style="text-align: center;"><img src="${LOGO_URL}" style="height: 60px; margin-bottom: 5px;"><div class="title">كشف مجمع ببيانات المعلمين المسجلين<br>${s.name} (${s.stageName})</div></div>
+                        <div style="font-size: 10px; text-align: left;">تاريخ الكشف: ${new Date().toLocaleDateString('ar-EG')}</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 25px;">م</th>
+                                <th>الاسم رباعي</th>
+                                <th>الرقم القومي</th>
+                                <th>التخصص</th>
+                                <th>المؤهل</th>
+                                <th>الجامعة</th>
+                                <th>الهاتف</th>
+                                <th>بداية العمل</th>
+                                <th>نوع التعاقد</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.map((t, idx) => `
+                                <tr>
+                                    <td>${idx + 1}</td>
+                                    <td style="text-align: right; font-weight: bold;">${t.name}</td>
+                                    <td style="font-family: monospace;">${t.nid}</td>
+                                    <td>${t.subject}</td>
+                                    <td class="qual-cell">${t.qualification}</td>
+                                    <td>${t.university || '-'}</td>
+                                    <td style="font-family: monospace;">${t.phone}</td>
+                                    <td style="font-family: monospace;">${formatDateOnly(t.startDate)}</td>
+                                    <td>${t.contractType}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="footer">
+                        <div class="sign">شؤون العاملين بالمدرسة<br><br>...........................</div>
+                        <div class="sign">ختم المدرسة<br><br><br></div>
+                        <div class="sign">يعتمد مدير المدرسة<br><br>...........................</div>
+                    </div>
+                    <script>
+                        window.onload = () => { window.print(); window.onafterprint = () => window.close(); };
+                    <\/script>
+                </body>
+                </html>
+            `;
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+
+        function exportSubjectReport(subjectName) {
+            let teachers = state.adminData.filter(t => t.subject === subjectName);
+            if (!teachers.length) return showToast('لا توجد بيانات لهذا التخصص', 'warning');
+
+            // الربط الذكي لسد الثغرات
+            teachers = teachers.map(t => {
+                const school = state.schools.find(s => String(s.code).trim() === String(t.schoolCode || '').trim());
+                return {
+                    ...t,
+                    schoolName: t.schoolName || (school ? school.name : 'مدرسة غير معروفة'),
+                    schoolStage: t.schoolStage || (school ? school.stageName || school.stage : 'غير محدد')
+                };
             });
 
-            // Auto Dismiss
-            setTimeout(() => {
-                toast.classList.remove('toast-enter-active');
-                toast.classList.add('toast-exit-active');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            // ترتيب المعلمين حسب المدرسة
+            teachers.sort((a, b) => (a.schoolName || '').localeCompare(b.schoolName || '', 'ar'));
+
+            const fileName = `تقرير_تخصص_${subjectName}_${new Date().toLocaleDateString('ar-EG').replace(/\//g, '-')}.xlsx`;
+            exportTeachersToExcel(teachers, fileName);
         }
 
-        // --- Init ---
+        function printSubjectReport(subjectName) {
+            let teachers = state.adminData.filter(t => t.subject === subjectName);
+            if (!teachers.length) return showToast('لا توجد بيانات لهذا التخصص للطباعة', 'warning');
+
+            // الربط الذكي لسد الثغرات قبل الطباعة
+            teachers = teachers.map(t => {
+                const school = state.schools.find(s => String(s.code).trim() === String(t.schoolCode || '').trim());
+                return {
+                    ...t,
+                    schoolName: t.schoolName || (school ? school.name : 'مدرسة غير معروفة'),
+                    schoolStage: t.schoolStage || (school ? school.stageName || school.stage : 'غير محدد')
+                };
+            });
+
+            // ترتيب المعلمين حسب المدرسة
+            teachers.sort((a, b) => (a.schoolName || '').localeCompare(b.schoolName || '', 'ar'));
+
+            const printWindow = window.open('', '_blank');
+            const html = `
+                <html lang="ar" dir="rtl">
+                <head>
+                    <title>كشف مادة: ${subjectName}</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+                    <style>
+                        @page { size: A4 landscape; margin: 1cm; }
+                        body { font-family: 'Cairo', sans-serif; padding: 10px; color: #000; direction: rtl; }
+                        .header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                        .title { text-align: center; font-size: 18px; font-weight: bold; flex-grow: 1; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px; }
+                        th, td { border: 1px solid #000; padding: 4px; text-align: center; }
+                        th { background: #f2f2f2; font-weight: bold; }
+                        .qual-cell { max-width: 150px; white-space: normal; word-wrap: break-word; line-height: 1.2; font-size: 9px; }
+                        .footer { margin-top: 30px; display: flex; justify-content: space-between; }
+                        .sign { text-align: center; width: 30%; font-size: 12px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div style="font-size: 10px;">محافظة الجيزة<br>مديرية التربية والتعليم<br>إدارة العمرانية التعليمية</div>
+                        <div style="text-align: center;"><img src="${LOGO_URL}" style="height: 60px; margin-bottom: 5px;"><div class="title">كشف مجمع لمعلمي مادة: ${subjectName}<br>(مرتب حسب المدارس)</div></div>
+                        <div style="font-size: 10px; text-align: left;">تاريخ الكشف: ${new Date().toLocaleDateString('ar-EG')}</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 25px;">م</th>
+                                <th>اسم المعلم</th>
+                                <th>المدرسة</th>
+                                <th>المرحلة</th>
+                                <th>الرقم القومي</th>
+                                <th style="width: 150px;">المؤهل الدراسي</th>
+                                <th>الهاتف</th>
+                                <th>بداية العمل</th>
+                                <th>نوع التعاقد</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${teachers.map((t, idx) => `
+                                <tr>
+                                    <td>${idx + 1}</td>
+                                    <td style="text-align: right; font-weight: bold;">${t.name}</td>
+                                    <td>${t.schoolName}</td>
+                                    <td style="font-size: 8px;">${t.schoolStage}</td>
+                                    <td style="font-family: monospace;">${t.nid}</td>
+                                    <td class="qual-cell">${t.qualification}</td>
+                                    <td style="font-family: monospace;">${t.phone}</td>
+                                    <td style="font-family: monospace;">${formatDateOnly(t.startDate)}</td>
+                                    <td>${t.contractType}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="footer">
+                        <div class="sign">موجه المادة<br><br>...........................</div>
+                        <div class="sign">الموجه الأول<br><br>...........................</div>
+                        <div class="sign">يعتمد مدير عام الإدارة<br><br>...........................</div>
+                    </div>
+                    <script>
+                        window.onload = () => { window.print(); window.onafterprint = () => window.close(); };
+                    <\/script>
+                </body>
+                </html>
+            `;
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+
+        function exportTeachersToExcel(data, fileName) {
+            if (!data || !data.length) return showToast('لا توجد بيانات للتحميل', 'warning');
+
+            const excelData = data.map((t, index) => {
+                // الربط التلقائي للمدرسة والمرحلة إذا كانت ناقصة
+                let sName = t.schoolName;
+                let sStage = t.schoolStage;
+                if (!sName || !sStage) {
+                    const school = state.schools.find(s => String(s.code) === String(t.schoolCode));
+                    if (school) {
+                        sName = sName || school.name;
+                        sStage = sStage || school.stageName;
+                    }
+                }
+
+                return {
+                    'م': index + 1,
+                    'اسم المعلم': t.name,
+                    'الرقم القومي': t.nid,
+                    'كود المعلم': t.teacherCode || '',
+                    'المدرسة': sName || '-',
+                    'المرحلة': sStage || '-',
+                    'التخصص': t.subject,
+                    'المؤهل': t.qualification,
+                    'الجامعة': t.university || '',
+                    'سنة التخرج': t.gradYear || '',
+                    'التقدير': t.grade || '',
+                    'المحمول': t.phone,
+                    'المحافظة': t.gov,
+                    'تاريخ التعيين': formatDateOnly(t.startDate),
+                    'نوع التعاقد': t.contractType,
+                    'العنوان': t.address || ''
+                };
+            });
+
+            const ws = XLSX.utils.json_to_sheet(excelData);
+
+            // اتجاه الصفحة من اليمين لليسار
+            if (!ws['!views']) ws['!views'] = [{}];
+            ws['!views'][0] = { rtl: true };
+
+            // عرض الأعمدة
+            ws['!cols'] = [
+                { wch: 5 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 15 },
+                { wch: 20 }, { wch: 25 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 15 },
+                { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 40 }
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "بيانات المعلمين");
+            XLSX.writeFile(wb, fileName);
+            showToast('تم تصدير ملف الإكسيل بنجاح بنسخة احترافية ومنسقة', 'success');
+        }
+
+        function printTeacherFormByName(nid) {
+            // البحث الشامل في بيانات المدرسة والأدمن
+            const t = state.teachers.find(x => String(x.nid).trim() === String(nid).trim()) ||
+                state.adminData.find(x => String(x.nid).trim() === String(nid).trim());
+            if (t) printTeacherForm(t);
+            else showToast('عذراً، لم نتمكن من العثور على بيانات المعلم للطباعة', 'error');
+        }
+
+        function printTeacherForm(teacherData) {
+            let t = teacherData || state.user;
+
+            // الربط الذكي للمدرسة والمرحلة لضمان عدم ظهور اسم المعلم في رأس الصفحة
+            if (!t.schoolName || t.schoolName === t.name) {
+                const school = state.schools.find(s => String(s.code).trim() === String(t.schoolCode || state.user.code).trim());
+                if (school) {
+                    t = {
+                        ...t,
+                        schoolName: school.name,
+                        schoolStage: school.stageName
+                    };
+                }
+            }
+
+            const printWindow = window.open('', '_blank');
+            const html = `
+                <html lang="ar" dir="rtl">
+                <head>
+                    <title>استمارة بيانات المعلم - ${t.name}</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+                    <style>
+                        @page { size: A4; margin: 1cm; }
+                        body { font-family: 'Cairo', sans-serif; padding: 20px; color: #333; line-height: 1.4; }
+                        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px; }
+                        .title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #000; border: 2px solid #000; display: inline-block; padding: 5px 30px; margin-right: auto; margin-left: auto; display: block; width: fit-content; }
+                        .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 10px 40px; }
+                        .item { border-bottom: 1px dotted #ccc; padding: 5px 0; display: flex; justify-content: space-between; }
+                        .label { font-weight: bold; color: #000; }
+                        .value { border-bottom: 1px solid #777; flex-grow: 1; margin-right: 10px; text-align: center; }
+                        .footer { margin-top: 40px; display: flex; justify-content: space-between; border-top: 1px solid #eee; }
+                        .sign-box { text-align: center; width: 45%; border: 1px solid #eee; padding: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div style="font-size: 12px;">محافظة الجيزة<br>مديرية التربية والتعليم<br>إدارة العمرانية التعليمية</div>
+                        <div style="text-align: center;"><img src="${LOGO_URL}" style="height: 70px; margin-bottom: 5px;"><div style="font-weight: bold; font-size: 20px;">استمارة تسجيل بيانات معلم</div><div style="font-size: 14px; font-weight: normal;">(قاعدة البيانات الموحدة)</div></div>
+                        <div style="text-align: left; font-size: 12px;">تاريخ الطباعة:<br>${new Date().toLocaleDateString('ar-EG')}</div>
+                    </div>
+                    
+                    <div class="title">البيانات الشخصية والوظيفية</div>
+                    
+                    <div class="grid">
+                        <div class="item"><span class="label">الاسم الكامل:</span> <span class="value">${t.name}</span></div>
+                        <div class="item"><span class="label">الرقم القومي:</span> <span class="value">${t.nid}</span></div>
+                        <div class="item"><span class="label">جهة العمل (المدرسة):</span> <span class="value">${t.schoolName}</span></div>
+                        <div class="item"><span class="label">المرحلة التعليمية:</span> <span class="value">${t.schoolStage || '---'}</span></div>
+                        <div class="item"><span class="label">كود المعلم:</span> <span class="value">${t.teacherCode || '---'}</span></div>
+                        <div class="item"><span class="label">التخصص / المادة:</span> <span class="value">${t.subject}</span></div>
+                        <div class="item"><span class="label">رقم الهاتف:</span> <span class="value">${t.phone}</span></div>
+                        <div class="item"><span class="label">المؤهل الدراسي:</span> <span class="value">${t.qualification}</span></div>
+                        <div class="item"><span class="label">الجامعة:</span> <span class="value">${t.university || '---'}</span></div>
+                        <div class="item"><span class="label">سنة العمل:</span> <span class="value">${formatDateOnly(t.startDate)}</span></div>
+                        <div class="item"><span class="label">نوع التعاقد:</span> <span class="value">${t.contractType}</span></div>
+                        <div class="item"><span class="label">العنوان الحالي:</span> <span class="value">${t.address || '---'}</span></div>
+                    </div>
+                    
+                    <div class="footer">
+                        <div class="sign-box">إقرار المعلم<br><br>أقر أنا الموضح بياناتي أعلاه بصحة البيانات المسجلة<br><br>التوقيع: ...........................</div>
+                        <div class="sign-box">يعتمد مدرسة / ${t.schoolName}<br><br>ختم المدرسة<br><br>مدير المدرسة: ...........................</div>
+                    </div>
+                    
+                    <script>
+                        window.onload = () => { window.print(); window.onafterprint = () => window.close(); };
+                    <\/script>
+                </body>
+                </html>
+            `;
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+
+        function viewTeacherFull(nid) {
+            const t = state.adminData.find(x => x.nid == nid);
+            if (!t) return;
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in no-print';
+            modal.innerHTML = `
+                <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 text-right" dir="rtl">
+                    <div class="bg-gradient-to-r from-blue-900 to-slate-900 p-8 text-white relative">
+                        <button onclick="this.closest('.fixed').remove()" class="absolute left-6 top-6 text-white/50 hover:text-white transition-colors">
+                            <i data-lucide="x-circle" class="w-8 h-8"></i>
+                        </button>
+                        <div class="flex items-center gap-4">
+                            <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center text-3xl font-black border border-white/10">
+                                ${t.name[0]}
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-black">${t.name}</h3>
+                                <p class="text-blue-300 text-sm">${t.subject} | ${t.schoolName}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-8 grid grid-cols-2 gap-6">
+                        ${[
+                    { l: 'الرقم القومي', v: t.nid, i: 'credit-card' },
+                    { l: 'المحمول', v: t.phone, i: 'phone' },
+                    { l: 'المؤهل', v: t.qualification, i: 'graduation-cap' },
+                    { l: 'سنة التخرج', v: t.gradYear || '---', i: 'calendar' },
+                    { l: 'تاريخ التعيين', v: formatDateOnly(t.startDate), i: 'clipboard-list' },
+                    { l: 'المحافظة', v: t.gov, i: 'map' }
+                ].map(item => `
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <div class="flex items-center gap-2 text-slate-400 mb-1">
+                                    <i data-lucide="${item.i}" class="w-3 h-3"></i>
+                                    <span class="text-[9px] font-black uppercase tracking-widest">${item.l}</span>
+                                </div>
+                                <div class="text-xs font-bold text-slate-800">${item.v}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="p-8 pt-0 flex gap-4">
+                        <button onclick="printTeacherFormByName('${t.nid}'); this.closest('.fixed').remove()" class="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all">
+                            <i data-lucide="printer" class="w-4 h-4"></i> طباعة الاستمارة
+                        </button>
+                        <button onclick="this.closest('.fixed').remove()" class="bg-slate-100 text-slate-600 px-8 py-3 rounded-2xl font-bold">إغلاق</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons();
+        }
+
+
         if (API_URL) reloadSchoolsAndLogin();
         else render();
     </script>

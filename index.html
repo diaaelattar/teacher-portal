@@ -214,7 +214,7 @@
             adminData: [],
             editingIndex: null,
             editingSchool: false,
-            loginForm: { stage: '', type: '', school: '' },
+            loginForm: { stage: '', type: '', school: '', password: '' },
             teacherLoginMode: false, // Toggle between School and Teacher login
             regFormStage: '' // For teacher self-registration stage filtering
         };
@@ -417,7 +417,7 @@
                         <label class="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">كلمة المرور</label>
                         <div class="relative">
                             <i data-lucide="lock" class="absolute right-3 top-3.5 w-5 h-5 text-gray-400"></i>
-                            <input type="password" id="schoolPass" class="w-full p-3.5 pr-11 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none" placeholder="••••••••">
+                            <input type="password" id="schoolPass" oninput="state.loginForm.password = this.value" value="${state.loginForm.password || ''}" class="w-full p-3.5 pr-11 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none" placeholder="••••••••">
                         </div>
                     </div>
 
@@ -469,18 +469,17 @@
 
             if (res.status === 'success') {
                 if (res.data) {
-                    state.user = { ...res.data, type: 'teacher' };
-                    state.editingIndex = nid;
-                    // Auto-set the stage filter if they already have a school
-                    const school = state.schools.find(s => s.code === res.data.schoolCode);
-                    if (school) state.regFormStage = school.stage;
+                    // BLOCK LOGIN for existing teachers - as per latest user request
+                    showToast(`عذراً، أنت مسجل بالفعل في مدرسة (${res.data.schoolName}). برجاء التواصل مع إدارة مدرستك لتعديل البيانات.`, 'info');
+                    render(); // Stay on login page
                 } else {
-                    state.user = { nid: nid, type: 'teacher' }; // New teacher
+                    // Allow registration for new teachers
+                    state.user = { nid: nid, type: 'teacher' };
                     state.editingIndex = null;
-                    state.regFormStage = ''; // Reset for new teacher
+                    state.regFormStage = '';
+                    state.currentView = 'teacher_dashboard';
+                    render();
                 }
-                state.currentView = 'teacher_dashboard';
-                render();
             } else {
                 showToast(res.message, 'error');
                 render();
@@ -489,7 +488,7 @@
 
         async function handleSchoolLogin() {
             const code = state.loginForm.school;
-            const pass = document.getElementById('schoolPass').value;
+            const pass = state.loginForm.password;
 
             if (!code) return showToast('يرجى اختيار المدرسة أولاً', 'warning');
             if (!pass) return showToast('يرجى إدخال كلمة المرور', 'warning');

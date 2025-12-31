@@ -173,19 +173,25 @@
     </style>
 
     <!-- Professional Footer -->
-    <footer class="bg-slate-900 text-slate-400 py-6 mt-12 border-t border-slate-800">
+    <footer class="bg-slate-900 text-slate-400 py-6 mt-12 border-t border-slate-800 no-print">
         <div
             class="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-right">
             <div>
-                <p class="font-bold text-slate-200 text-lg">إدارة العمرانية التعليمية 2025</p>
-                <p class="text-sm mt-1 italic">جميع حقوق النشر والبرمجة محفوظة © 2025</p>
+                <p class="font-bold text-slate-200 text-lg uppercase tracking-wider">إدارة العمرانية التعليمية 2025</p>
+                <p class="text-sm mt-1">تحت رعاية أ / <span class="text-yellow-500 font-bold">سعاد محمد</span> - مدير
+                    عام الإدارة</p>
+                <p class="text-[10px] mt-2 italic opacity-50">جميع حقوق النشر والبرمجة محفوظة © 2025</p>
             </div>
 
             <div class="flex flex-col items-center md:items-end">
-                <span class="text-xs bg-slate-800 px-3 py-1 rounded-full border border-slate-700 mb-1">تطوير
+                <span
+                    class="text-[10px] bg-slate-800 px-3 py-1 rounded-full border border-slate-700 mb-1 text-slate-500">تطوير
                     وبرمجة</span>
                 <span class="font-bold text-blue-400 font-mono tracking-wide text-lg">Diaa El Attar</span>
             </div>
+        </div>
+        <div class="text-center text-xs text-slate-500 mt-4">
+            <p>Office of Education - Integrated Enrollment System</p>
         </div>
     </footer>
 
@@ -202,8 +208,7 @@
         ];
 
         let API_URL = CONFIG_API_URL || localStorage.getItem('TEACHER_APP_API_URL') || '';
-        const LOGO_URL = "https://i.ibb.co/VmmS6L8/logo-omraneya.jpg"; // رابط شعار الإدارة الاحترافي
-
+        const LOGO_URL = "https://i.ibb.co/VmmS6L8/logo-omraneya.jpg";
         // --- State ---
         const state = {
             currentView: API_URL ? 'login' : 'setup', // setup | login | dashboard | admin
@@ -482,7 +487,13 @@
                     // ALLOW LOGIN for existing teachers
                     showToast(`أهلاً بك مرة أخرى. تم التعرف على بياناتك المسجلة بمدرسة (${res.data.schoolName}). يمكنك المعاينة والطباعة الآن.`, 'success');
                     state.user = { ...res.data, type: 'teacher' };
-                    state.editingIndex = null;
+                    state.editingIndex = nid; // CRITICAL: Mark as editing so handleRegister knows it is an update
+                    state.tempFormData = { ...res.data }; // Initialize form with existing data
+
+                    // Map school to stage to enable dropdowns
+                    const school = state.schools.find(s => s.code === res.data.schoolCode);
+                    if (school) state.regFormStage = school.stage;
+
                     state.currentView = 'teacher_dashboard';
                     render();
                 } else {
@@ -1113,7 +1124,10 @@
 
             // Validate NID
             const nidFeedback = document.getElementById('nidFeedback').textContent;
-            if (nidFeedback.includes('مسجل بالفعل') || nidFeedback === '' || nidFeedback.includes('أدخل 14')) {
+            // If editing existing record (teacher mode or editing index set), ignore "already registered" warning
+            const isEditing = state.editingIndex || state.user.type === 'teacher';
+
+            if (!isEditing && (nidFeedback.includes('مسجل بالفعل') || nidFeedback === '' || nidFeedback.includes('أدخل 14'))) {
                 return showToast('يرجى التأكد من الرقم الرقم القومي (غير صحيح أو مكرر)', 'error');
             }
 
@@ -1126,9 +1140,21 @@
                 data.schoolName = state.user.name;
                 data.schoolStage = state.user.stageName;
             } else if (state.user.type === 'teacher') {
-                // schoolCode and schoolName are already in the form for teachers
-                const school = state.schools.find(s => s.code === data.schoolCode);
-                data.schoolStage = school ? school.stageName : '';
+                // For teachers, schoolCode might come from the form (new registration)
+                // or from state.user (update session)
+                if (!data.schoolCode && state.user.schoolCode) {
+                    data.schoolCode = state.user.schoolCode;
+                    data.schoolName = state.user.schoolName;
+                    data.schoolStage = state.user.schoolStage;
+                } else if (data.schoolCode) {
+                    const school = state.schools.find(s => s.code === data.schoolCode);
+                    data.schoolStage = school ? school.stageName : '';
+                }
+            }
+
+            // CRITICAL CHECK: ensure schoolCode is present
+            if (!data.schoolCode) {
+                return showToast('فشل حفظ البيانات: كود المدرسة مطلوب. يرجى اختيار المدرسة أولاً.', 'error');
             }
 
             const action = state.editingIndex ? 'update' : 'register';

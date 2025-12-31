@@ -1194,114 +1194,118 @@
                             window.print();
                             window.onafterprint = () => window.close();
                         };
-    </script>
+    <\/script>
 </body>
 
 </html>
 `;
-printWindow.document.write(html);
-printWindow.document.close();
-}
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
 
-async function deleteTeacher(nid) { if (!confirm('حذف نهائي؟')) return; const res = await sendData('delete', { nid: nid,
-schoolCode: state.user.code }); if (res.status === 'success') await loadSchoolData(); }
-function editTeacher(nid) { state.editingIndex = nid; render(); }
-function cancelEdit() { state.editingIndex = null; render(); }
-function logout() { state.user = null; state.currentView = 'login'; state.regFormStage = ''; render(); }
-function clearConfig() { localStorage.removeItem('TEACHER_APP_API_URL'); location.reload(); }
-function setState(key, val) { state[key] = val; render(); }
+        async function deleteTeacher(nid) {
+            if (!confirm('حذف نهائي؟')) return; const res = await sendData('delete', {
+                nid: nid,
+                schoolCode: state.user.code
+            }); if (res.status === 'success') await loadSchoolData();
+        }
+        function editTeacher(nid) { state.editingIndex = nid; render(); }
+        function cancelEdit() { state.editingIndex = null; render(); }
+        function logout() { state.user = null; state.currentView = 'login'; state.regFormStage = ''; render(); }
+        function clearConfig() { localStorage.removeItem('TEACHER_APP_API_URL'); location.reload(); }
+        function setState(key, val) { state[key] = val; render(); }
 
-// School Mgmt
-async function handleAddSchool(e) {
-e.preventDefault();
-const form = new FormData(e.target);
-const data = Object.fromEntries(form.entries());
+        // School Mgmt
+        async function handleAddSchool(e) {
+            e.preventDefault();
+            const form = new FormData(e.target);
+            const data = Object.fromEntries(form.entries());
 
-// Map nice names
-data.stageName = data.stage === 'Abdaey' ? 'الابتدائية' : (data.stage === 'Eadady' ? 'الإعدادية' : 'الثانوية');
+            // Map nice names
+            data.stageName = data.stage === 'Abdaey' ? 'الابتدائية' : (data.stage === 'Eadady' ? 'الإعدادية' : 'الثانوية');
 
-const typeMap = {
-'official': 'رسمي',
-'official_lang': 'رسمي لغات',
-'private_arabic': 'خاص عربي',
-'private_lang': 'خاص لغات',
-'international': 'دولي',
-'cultural': 'ثقافي'
-};
-data.typeName = typeMap[data.type] || data.type;
+            const typeMap = {
+                'official': 'رسمي',
+                'official_lang': 'رسمي لغات',
+                'private_arabic': 'خاص عربي',
+                'private_lang': 'خاص لغات',
+                'international': 'دولي',
+                'cultural': 'ثقافي'
+            };
+            data.typeName = typeMap[data.type] || data.type;
 
-const action = state.editingSchool ? 'updateSchool' : 'addSchool';
-const res = await sendData(action, { data: data });
+            const action = state.editingSchool ? 'updateSchool' : 'addSchool';
+            const res = await sendData(action, { data: data });
 
-if (res.status === 'success') {
-showToast(state.editingSchool ? 'تم تعديل بيانات المدرسة' : 'تم إضافة المدرسة بنجاح', 'success');
-state.editingSchool = false;
-document.getElementById('schoolForm').reset();
-await loadAllData();
-} else {
-showToast(res.message, 'error');
-}
-}
+            if (res.status === 'success') {
+                showToast(state.editingSchool ? 'تم تعديل بيانات المدرسة' : 'تم إضافة المدرسة بنجاح', 'success');
+                state.editingSchool = false;
+                document.getElementById('schoolForm').reset();
+                await loadAllData();
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
 
-async function deleteSchool(code) {
-if (!confirm('حذف المدرسة؟')) return;
-const res = await sendData('deleteSchool', { code: code });
-if (res.status === 'success') await loadAllData();
-}
+        async function deleteSchool(code) {
+            if (!confirm('حذف المدرسة؟')) return;
+            const res = await sendData('deleteSchool', { code: code });
+            if (res.status === 'success') await loadAllData();
+        }
 
-function editSchool(code) {
-const s = state.schools.find(x => x.code === code);
-if (!s) return;
-state.editingSchool = true;
-render(); // Re-render to show edit state
-// Fill form after render
-setTimeout(() => {
-const f = document.getElementById('schoolForm');
-for (let k in s) {
-if (f.elements[k]) f.elements[k].value = s[k];
-}
-document.getElementById('schoolFormTitle').textContent = `تعديل مدرسة: ${s.name}`;
-document.getElementById('schoolCodeInput').readOnly = true;
-document.getElementById('schoolCodeInput').classList.add('bg-gray-200');
-}, 50);
-}
+        function editSchool(code) {
+            const s = state.schools.find(x => x.code === code);
+            if (!s) return;
+            state.editingSchool = true;
+            render(); // Re-render to show edit state
+            // Fill form after render
+            setTimeout(() => {
+                const f = document.getElementById('schoolForm');
+                for (let k in s) {
+                    if (f.elements[k]) f.elements[k].value = s[k];
+                }
+                document.getElementById('schoolFormTitle').textContent = `تعديل مدرسة: ${s.name}`;
+                document.getElementById('schoolCodeInput').readOnly = true;
+                document.getElementById('schoolCodeInput').classList.add('bg-gray-200');
+            }, 50);
+        }
 
-function cancelSchoolEdit() {
-state.editingSchool = false;
-render();
-}
+        function cancelSchoolEdit() {
+            state.editingSchool = false;
+            render();
+        }
 
-function exportFullData() {
-const data = state.adminData;
-if (!data.length) return showToast('لا توجد بيانات للتحميل', 'warning');
-const headers = Object.keys(data[0]);
-const csv = [headers.join(','), ...data.map(r => headers.map(h => `"${r[h]}"`).join(','))].join('\n');
-const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-const url = URL.createObjectURL(blob);
-const a = document.createElement('a'); a.href = url; a.download = 'All_Teachers.csv'; a.click();
-}
+        function exportFullData() {
+            const data = state.adminData;
+            if (!data.length) return showToast('لا توجد بيانات للتحميل', 'warning');
+            const headers = Object.keys(data[0]);
+            const csv = [headers.join(','), ...data.map(r => headers.map(h => `"${r[h]}"`).join(','))].join('\n');
+            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'All_Teachers.csv'; a.click();
+        }
 
-// --- Toast Notification System ---
-function showToast(message, type = 'info') {
-const container = document.getElementById('toast-container');
-const toast = document.createElement('div');
+        // --- Toast Notification System ---
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
 
-const colors = {
-success: 'bg-green-100 border-green-500 text-green-700',
-error: 'bg-red-100 border-red-500 text-red-700',
-info: 'bg-blue-100 border-blue-500 text-blue-700',
-warning: 'bg-yellow-100 border-yellow-500 text-yellow-700'
-};
-const icons = {
-success: 'check-circle',
-error: 'alert-circle',
-info: 'info',
-warning: 'alert-triangle'
-};
+            const colors = {
+                success: 'bg-green-100 border-green-500 text-green-700',
+                error: 'bg-red-100 border-red-500 text-red-700',
+                info: 'bg-blue-100 border-blue-500 text-blue-700',
+                warning: 'bg-yellow-100 border-yellow-500 text-yellow-700'
+            };
+            const icons = {
+                success: 'check-circle',
+                error: 'alert-circle',
+                info: 'info',
+                warning: 'alert-triangle'
+            };
 
-toast.className = `${colors[type]} border-l-4 p-4 rounded shadow-lg flex items-center gap-3 min-w-[300px] max-w-md
+            toast.className = `${colors[type]} border-l-4 p-4 rounded shadow-lg flex items-center gap-3 min-w-[300px] max-w-md
 toast-enter`;
-toast.innerHTML = `
+            toast.innerHTML = `
 <i data-lucide="${icons[type]}" class="w-6 h-6"></i>
 <div>
     <p class="font-bold text-sm">${type === 'success' ? 'نجاح' : (type === 'error' ? 'خطأ' : 'تنبيه')}</p>
@@ -1309,27 +1313,27 @@ toast.innerHTML = `
 </div>
 `;
 
-container.appendChild(toast);
-lucide.createIcons();
+            container.appendChild(toast);
+            lucide.createIcons();
 
-// Animate In
-requestAnimationFrame(() => {
-toast.classList.remove('toast-enter');
-toast.classList.add('toast-enter-active');
-});
+            // Animate In
+            requestAnimationFrame(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-enter-active');
+            });
 
-// Auto Dismiss
-setTimeout(() => {
-toast.classList.remove('toast-enter-active');
-toast.classList.add('toast-exit-active');
-setTimeout(() => toast.remove(), 300);
-}, 3000);
-}
+            // Auto Dismiss
+            setTimeout(() => {
+                toast.classList.remove('toast-enter-active');
+                toast.classList.add('toast-exit-active');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
 
-// --- Init ---
-if (API_URL) reloadSchoolsAndLogin();
-else render();
-</script>
+        // --- Init ---
+        if (API_URL) reloadSchoolsAndLogin();
+        else render();
+    </script>
 </body>
 
 </html>
